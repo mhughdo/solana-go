@@ -393,5 +393,9 @@ func decodeResponseFromMessage(r []byte, reply interface{}) (err error) {
 		return json2.ErrNullResult
 	}
 
+	if c.Params.Result == nil {
+		return json2.ErrNullResult
+	}
+
 	return json.Unmarshal(*c.Params.Result, &reply)
 }
