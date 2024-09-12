@@ -60,6 +60,7 @@ type response struct {
 
 type params struct {
 	Result       *stdjson.RawMessage `json:"result"`
+	Error        *stdjson.RawMessage `json:"error"`
 	Subscription int                 `json:"subscription"`
 }
 
