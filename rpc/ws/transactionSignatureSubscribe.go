@@ -19,10 +19,10 @@ type TransactionSignatureResult struct {
 			LogMessages       []string           `json:"logMessages"`
 			PreTokenBalances  []rpc.TokenBalance `json:"preTokenBalances"`
 			PostTokenBalances []rpc.TokenBalance `json:"postTokenBalances"`
-			Slot              uint64             `json:"slot"`
 		} `json:"meta"`
 	} `json:"transaction"`
 	Signature solana.Signature `json:"signature"`
+	Slot      uint64           `json:"slot"`
 }
 
 // TransactionSignatureSubscribe subscribes to a transaction signature. Only Helius rpc nodes support this method.
