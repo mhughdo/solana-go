@@ -340,6 +340,7 @@ func (c *Client) subscribe(
 	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	err = c.conn.WriteMessage(websocket.TextMessage, data)
 	if err != nil {
+		delete(c.subscriptionByRequestID, req.ID)
 		return nil, fmt.Errorf("unable to write request: %w", err)
 	}
 
@@ -390,7 +391,7 @@ func decodeResponseFromMessage(r []byte, reply interface{}) (err error) {
 	if c.Params == nil {
 		return json2.ErrNullResult
 	}
-	
+
 	if c.Params.Error != nil {
 		return &json2.Error{
 			Code:    json2.E_SERVER,
