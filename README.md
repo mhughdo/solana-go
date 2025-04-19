@@ -10,9 +10,15 @@ Go library to interface with Solana JSON RPC and WebSocket interfaces.
 
 More contracts to come.
 
-**If you're using/developing Solana programs written in [Anchor Framework](https://github.com/project-serum/anchor), you can use [anchor-go](https://github.com/gagliardetto/anchor-go) to generate Golang clients**
+**If you're using/developing Solana programs written in
+[Anchor Framework](https://github.com/project-serum/anchor), you can use
+[anchor-go](https://github.com/gagliardetto/anchor-go) to generate Golang
+clients**
 
-**If you're looking for a SERUM library, you can check out [gagliardetto/serum-go](https://github.com/gagliardetto/serum-go) ([./programs/serum](https://github.com/gagliardetto/solana-go/tree/main/programs/serum) is deprecated.**)
+**If you're looking for a SERUM library, you can check out
+[gagliardetto/serum-go](https://github.com/gagliardetto/serum-go)
+([./programs/serum](https://github.com/gagliardetto/solana-go/tree/main/programs/serum)
+is deprecated.**)
 
 <div align="center">
     <img src="https://user-images.githubusercontent.com/15271561/128235229-1d2d9116-23bb-464e-b2cc-8fb6355e3b55.png" margin="auto" height="175"/>
@@ -22,7 +28,9 @@ More contracts to come.
 
 `solana-go` is exclusively supported by my own time (which is money).
 
-If my work has been useful in building your for-profit services/infra/bots/etc., consider donating at 8tTwBazKr2ST1b2kNrM7JMXwixRTvZicn7eRBihThymm (solana) to support future development.
+If my work has been useful in building your for-profit services/infra/bots/etc.,
+consider donating at 8tTwBazKr2ST1b2kNrM7JMXwixRTvZicn7eRBihThymm (solana) to
+support future development.
 
 Thanks!
 
@@ -83,9 +91,11 @@ Thanks!
 
 ## Current development status
 
-There is currently **no stable release**. The SDK is actively developed and latest is `v1.12.0` which is an `alpha` release.
+There is currently **no stable release**. The SDK is actively developed and
+latest is `v1.12.0` which is an `alpha` release.
 
-The RPC and WS client implementation is based on [this RPC spec](https://github.com/solana-labs/solana/blob/c2435363f39723cef59b91322f3b6a815008af29/docs/src/developing/clients/jsonrpc-api.md).
+The RPC and WS client implementation is based on
+[this RPC spec](https://github.com/solana-labs/solana/blob/c2435363f39723cef59b91322f3b6a815008af29/docs/src/developing/clients/jsonrpc-api.md).
 
 ## Note
 
@@ -107,7 +117,8 @@ $ go get github.com/gagliardetto/solana-go@v1.12.0
 
 ![pretty-printed](https://user-images.githubusercontent.com/15271561/136708519-399c9498-3d20-48d6-89fa-bdf43aac6d83.png)
 
-Instructions can be pretty-printed with the `String()` method on a `Transaction`:
+Instructions can be pretty-printed with the `String()` method on a
+`Transaction`:
 
 ```go
 tx, err := solana.NewTransaction(
@@ -132,7 +143,10 @@ fmt.Println(tx.String())
 
 ## SendAndConfirmTransaction
 
-You can wait for a transaction confirmation using the `github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction` package tools (for a complete example: [see here](#transfer-sol-from-one-wallet-to-another-wallet))
+You can wait for a transaction confirmation using the
+`github.com/gagliardetto/solana-go/rpc/sendAndConfirmTransaction` package tools
+(for a complete example:
+[see here](#transfer-sol-from-one-wallet-to-another-wallet))
 
 ```go
 // Send transaction, and wait for confirmation:
@@ -250,7 +264,6 @@ func processTransactionWithAddressLookups(txx *solana.Transaction, rpcClient *rp
 	fmt.Println(txx.String())
 }
 ```
-
 
 ## Parse/decode an instruction from a transaction
 
@@ -390,7 +403,8 @@ func decodeSystemTransfer(tx *solana.Transaction) {
 
 ## Borsh encoding/decoding
 
-You can use the `github.com/gagliardetto/binary` package for encoding/decoding borsh-encoded data:
+You can use the `github.com/gagliardetto/binary` package for encoding/decoding
+borsh-encoded data:
 
 Decoder:
 
@@ -425,7 +439,8 @@ if err != nil {
 
 ## ZSTD account data encoding
 
-You can request account data to be encoded with base64+zstd in the `Encoding` parameter:
+You can request account data to be encoded with base64+zstd in the `Encoding`
+parameter:
 
 ```go
 resp, err := client.GetAccountInfoWithOpts(
@@ -512,7 +527,8 @@ func main() {
 }
 ```
 
-The data will **AUTOMATICALLY get decoded** and returned (**the right decoder will be used**) when you call the `resp.GetBinary()` method.
+The data will **AUTOMATICALLY get decoded** and returned (**the right decoder
+will be used**) when you call the `resp.GetBinary()` method.
 
 ## Timeouts and Custom HTTP Clients
 
@@ -530,7 +546,8 @@ acc, err := rpcClient.GetAccountInfoWithOpts(
 )
 ```
 
-Or you can initialize the RPC client using a custom HTTP client using `rpc.NewWithCustomRPCClient`:
+Or you can initialize the RPC client using a custom HTTP client using
+`rpc.NewWithCustomRPCClient`:
 
 ```go
 import (
@@ -826,87 +843,102 @@ func main() {
 
 ## RPC usage examples
 
-- [RPC Methods](#rpc-methods)
-  - [GetAccountInfo](#index--rpc--getaccountinfo)
-  - [GetBalance](#index--rpc--getbalance)
-  - [GetBlock](#index--rpc--getblock)
-  - [GetBlockCommitment](#index--rpc--getblockcommitment)
-  - [GetBlockHeight](#index--rpc--getblockheight)
-  - [GetBlockProduction](#index--rpc--getblockproduction)
-  - [GetBlockTime](#index--rpc--getblocktime)
-  - [GetBlocks](#index--rpc--getblocks)
-  - [GetBlocksWithLimit](#index--rpc--getblockswithlimit)
-  - [GetClusterNodes](#index--rpc--getclusternodes)
-  - [GetConfirmedBlock](#index--rpc--getconfirmedblock)
-    - **DEPRECATED: Please use [GetBlock](#index--rpc--getblock) instead** (This method is expected to be removed in **solana-core v2.0**)
-  - [GetConfirmedBlocks](#index--rpc--getconfirmedblocks)
-    - **DEPRECATED: Please use [GetBlocks](#index--rpc--getblocks) instead** (This method is expected to be removed in **solana-core v2.0**)
-  - [GetConfirmedBlocksWithLimit](#index--rpc--getconfirmedblockswithlimit)
-    - **DEPRECATED: Please use [GetBlocksWithLimit](#index--rpc--getblockswithlimit) instead** (This method is expected to be removed in **solana-core v2.0**)
-  - [GetConfirmedSignaturesForAddress2](#index--rpc--getconfirmedsignaturesforaddress2)
-    - **DEPRECATED: Please use [GetSignaturesForAddress](#index--rpc--getsignaturesforaddress) instead** (This method is expected to be removed in **solana-core v2.0**)
-  - [GetConfirmedTransaction](#index--rpc--getconfirmedtransaction)
-    - **DEPRECATED: Please use [GetTransaction](#index--rpc--gettransaction) instead** (This method is expected to be removed in **solana-core v2.0**)
-  - [GetEpochInfo](#index--rpc--getepochinfo)
-  - [GetEpochSchedule](#index--rpc--getepochschedule)
-  - [GetFeeCalculatorForBlockhash](#index--rpc--getfeecalculatorforblockhash)
-    - **DEPRECATED: Please use [IsBlockhashValid](#index--rpc--isblockhashvalid) or [GetFeeForMessage](#index--rpc--getfeeformessage) instead** (This method is expected to be removed in **solana-core v2.0**)
-  - [GetFeeRateGovernor](#index--rpc--getfeerategovernor) **DEPRECATED**
-  - [GetFees](#index--rpc--getfees)
-    - **DEPRECATED: Please use [GetFeeForMessage](#index--rpc--getfeeformessage) instead** (This method is expected to be removed in **solana-core v2.0**)
-  - [GetFeeForMessage](#index--rpc--getfeeformessage)
-  - [GetFirstAvailableBlock](#index--rpc--getfirstavailableblock)
-  - [GetGenesisHash](#index--rpc--getgenesishash)
-  - [GetHealth](#index--rpc--gethealth)
-  - [GetHighestSnapshotSlot](#index--rpc--gethighestsnapshotslot)
-  - [GetLatestBlockhash](#index--rpc--getlatestblockhash)
-  - [GetIdentity](#index--rpc--getidentity)
-  - [GetInflationGovernor](#index--rpc--getinflationgovernor)
-  - [GetInflationRate](#index--rpc--getinflationrate)
-  - [GetInflationReward](#index--rpc--getinflationreward)
-  - [GetLargestAccounts](#index--rpc--getlargestaccounts)
-  - [GetLeaderSchedule](#index--rpc--getleaderschedule)
-  - [GetMaxRetransmitSlot](#index--rpc--getmaxretransmitslot)
-  - [GetMaxShredInsertSlot](#index--rpc--getmaxshredinsertslot)
-  - [GetMinimumBalanceForRentExemption](#index--rpc--getminimumbalanceforrentexemption)
-  - [GetMultipleAccounts](#index--rpc--getmultipleaccounts)
-  - [GetProgramAccounts](#index--rpc--getprogramaccounts)
-  - [GetRecentBlockhash](#index--rpc--getrecentblockhash)
-    - To be used with **solana v1.8**
-    - For solana v1.9 or newer: **DEPRECATED: Please use [GetLatestBlockhash](#index--rpc--getlatestblockhash) instead** (This method is expected to be removed in **solana-core v2.0**)
-  - [GetRecentPerformanceSamples](#index--rpc--getrecentperformancesamples)
-  - [GetRecentPrioritizationFees](#index--rpc--getrecentprioritizationfees)
-  - [GetSignatureStatuses](#index--rpc--getsignaturestatuses)
-  - [GetSignaturesForAddress](#index--rpc--getsignaturesforaddress)
-  - [GetSlot](#index--rpc--getslot)
-  - [GetSlotLeader](#index--rpc--getslotleader)
-  - [GetSlotLeaders](#index--rpc--getslotleaders)
-  - [GetSnapshotSlot](#index--rpc--getsnapshotslot)
-    - **DEPRECATED: Please use [GetHighestSnapshotSlot](#index--rpc--gethighestsnapshotslot) instead** (This method is expected to be removed in **solana-core v2.0**)
-  - [GetStakeActivation](#index--rpc--getstakeactivation)
-  - [GetSupply](#index--rpc--getsupply)
-  - [GetTokenAccountBalance](#index--rpc--gettokenaccountbalance)
-  - [GetTokenAccountsByDelegate](#index--rpc--gettokenaccountsbydelegate)
-  - [GetTokenAccountsByOwner](#index--rpc--gettokenaccountsbyowner)
-  - [GetTokenLargestAccounts](#index--rpc--gettokenlargestaccounts)
-  - [GetTokenSupply](#index--rpc--gettokensupply)
-  - [GetTransaction](#index--rpc--gettransaction)
-  - [GetTransactionCount](#index--rpc--gettransactioncount)
-  - [GetVersion](#index--rpc--getversion)
-  - [GetVoteAccounts](#index--rpc--getvoteaccounts)
-  - [IsBlockhashValid](#index--rpc--isblockhashvalid)
-  - [MinimumLedgerSlot](#index--rpc--minimumledgerslot)
-  - [RequestAirdrop](#index--rpc--requestairdrop)
-  - [SendTransaction](#index--rpc--sendtransaction)
-  - [SimulateTransaction](#index--rpc--simulatetransaction)
-- [Websocket Subscriptions](#websocket-subscriptions)
-  - [AccountSubscribe](#index--ws-subscriptions--accountsubscribe)
-  - [LogsSubscribe](#index--ws-subscriptions--logssubscribe)
-  - [ProgramSubscribe](#index--ws-subscriptions--programsubscribe)
-  - [RootSubscribe](#index--ws-subscriptions--rootsubscribe)
-  - [SignatureSubscribe](#index--ws-subscriptions--signaturesubscribe)
-  - [SlotSubscribe](#index--ws-subscriptions--slotsubscribe)
-  - [VoteSubscribe](#index--ws-subscriptions--votesubscribe)
+- [Solana SDK library for Go](#solana-sdk-library-for-go)
+  - [Future Development](#future-development)
+  - [Contents](#contents)
+  - [Features](#features)
+  - [Current development status](#current-development-status)
+  - [Note](#note)
+  - [Requirements](#requirements)
+  - [Installation](#installation)
+  - [Pretty-Print transactions/instructions](#pretty-print-transactionsinstructions)
+  - [SendAndConfirmTransaction](#sendandconfirmtransaction)
+  - [Address Lookup Tables](#address-lookup-tables)
+  - [Parse/decode an instruction from a transaction](#parsedecode-an-instruction-from-a-transaction)
+  - [Borsh encoding/decoding](#borsh-encodingdecoding)
+  - [ZSTD account data encoding](#zstd-account-data-encoding)
+  - [Working with rate-limited RPC providers](#working-with-rate-limited-rpc-providers)
+  - [Custom Headers for authenticating with RPC providers](#custom-headers-for-authenticating-with-rpc-providers)
+  - [Timeouts and Custom HTTP Clients](#timeouts-and-custom-http-clients)
+  - [Examples](#examples)
+    - [Create account (wallet)](#create-account-wallet)
+    - [Load/parse private and public keys](#loadparse-private-and-public-keys)
+    - [Transfer Sol from one wallet to another wallet](#transfer-sol-from-one-wallet-to-another-wallet)
+  - [RPC usage examples](#rpc-usage-examples)
+    - [RPC Methods](#rpc-methods)
+      - [index \> RPC \> GetAccountInfo](#index--rpc--getaccountinfo)
+      - [index \> RPC \> GetBalance](#index--rpc--getbalance)
+      - [index \> RPC \> GetBlock](#index--rpc--getblock)
+      - [index \> RPC \> GetBlockCommitment](#index--rpc--getblockcommitment)
+      - [index \> RPC \> GetBlockHeight](#index--rpc--getblockheight)
+      - [index \> RPC \> GetBlockProduction](#index--rpc--getblockproduction)
+      - [index \> RPC \> GetBlockTime](#index--rpc--getblocktime)
+      - [index \> RPC \> GetBlocks](#index--rpc--getblocks)
+      - [index \> RPC \> GetBlocksWithLimit](#index--rpc--getblockswithlimit)
+      - [index \> RPC \> GetClusterNodes](#index--rpc--getclusternodes)
+      - [index \> RPC \> GetConfirmedBlock](#index--rpc--getconfirmedblock)
+      - [index \> RPC \> GetConfirmedBlocks](#index--rpc--getconfirmedblocks)
+      - [index \> RPC \> GetConfirmedBlocksWithLimit](#index--rpc--getconfirmedblockswithlimit)
+      - [index \> RPC \> GetConfirmedSignaturesForAddress2](#index--rpc--getconfirmedsignaturesforaddress2)
+      - [index \> RPC \> GetConfirmedTransaction](#index--rpc--getconfirmedtransaction)
+      - [index \> RPC \> GetEpochInfo](#index--rpc--getepochinfo)
+      - [index \> RPC \> GetEpochSchedule](#index--rpc--getepochschedule)
+      - [index \> RPC \> GetFeeCalculatorForBlockhash](#index--rpc--getfeecalculatorforblockhash)
+      - [index \> RPC \> GetFeeRateGovernor](#index--rpc--getfeerategovernor)
+      - [index \> RPC \> GetFees](#index--rpc--getfees)
+      - [index \> RPC \> GetFeeForMessage](#index--rpc--getfeeformessage)
+      - [index \> RPC \> GetFirstAvailableBlock](#index--rpc--getfirstavailableblock)
+      - [index \> RPC \> GetGenesisHash](#index--rpc--getgenesishash)
+      - [index \> RPC \> GetHealth](#index--rpc--gethealth)
+      - [index \> RPC \> GetHighestSnapshotSlot](#index--rpc--gethighestsnapshotslot)
+      - [index \> RPC \> GetLatestBlockhash](#index--rpc--getlatestblockhash)
+      - [index \> RPC \> GetIdentity](#index--rpc--getidentity)
+      - [index \> RPC \> GetInflationGovernor](#index--rpc--getinflationgovernor)
+      - [index \> RPC \> GetInflationRate](#index--rpc--getinflationrate)
+      - [index \> RPC \> GetInflationReward](#index--rpc--getinflationreward)
+      - [index \> RPC \> GetLargestAccounts](#index--rpc--getlargestaccounts)
+      - [index \> RPC \> GetLeaderSchedule](#index--rpc--getleaderschedule)
+      - [index \> RPC \> GetMaxRetransmitSlot](#index--rpc--getmaxretransmitslot)
+      - [index \> RPC \> GetMaxShredInsertSlot](#index--rpc--getmaxshredinsertslot)
+      - [index \> RPC \> GetMinimumBalanceForRentExemption](#index--rpc--getminimumbalanceforrentexemption)
+      - [index \> RPC \> GetMultipleAccounts](#index--rpc--getmultipleaccounts)
+      - [index \> RPC \> GetProgramAccounts](#index--rpc--getprogramaccounts)
+      - [index \> RPC \> GetRecentBlockhash](#index--rpc--getrecentblockhash)
+      - [index \> RPC \> GetRecentPerformanceSamples](#index--rpc--getrecentperformancesamples)
+      - [index \> RPC \> GetRecentPrioritizationFees](#index--rpc--getrecentprioritizationfees)
+      - [index \> RPC \> GetSignatureStatuses](#index--rpc--getsignaturestatuses)
+      - [index \> RPC \> GetSignaturesForAddress](#index--rpc--getsignaturesforaddress)
+      - [index \> RPC \> GetSlot](#index--rpc--getslot)
+      - [index \> RPC \> GetSlotLeader](#index--rpc--getslotleader)
+      - [index \> RPC \> GetSlotLeaders](#index--rpc--getslotleaders)
+      - [index \> RPC \> GetSnapshotSlot](#index--rpc--getsnapshotslot)
+      - [index \> RPC \> GetStakeActivation](#index--rpc--getstakeactivation)
+      - [index \> RPC \> GetSupply](#index--rpc--getsupply)
+      - [index \> RPC \> GetTokenAccountBalance](#index--rpc--gettokenaccountbalance)
+      - [index \> RPC \> GetTokenAccountsByDelegate](#index--rpc--gettokenaccountsbydelegate)
+      - [index \> RPC \> GetTokenAccountsByOwner](#index--rpc--gettokenaccountsbyowner)
+      - [index \> RPC \> GetTokenLargestAccounts](#index--rpc--gettokenlargestaccounts)
+      - [index \> RPC \> GetTokenSupply](#index--rpc--gettokensupply)
+      - [index \> RPC \> GetTransaction](#index--rpc--gettransaction)
+      - [index \> RPC \> GetTransactionCount](#index--rpc--gettransactioncount)
+      - [index \> RPC \> GetVersion](#index--rpc--getversion)
+      - [index \> RPC \> GetVoteAccounts](#index--rpc--getvoteaccounts)
+      - [index \> RPC \> IsBlockhashValid](#index--rpc--isblockhashvalid)
+      - [index \> RPC \> MinimumLedgerSlot](#index--rpc--minimumledgerslot)
+      - [index \> RPC \> RequestAirdrop](#index--rpc--requestairdrop)
+      - [index \> RPC \> SendTransaction](#index--rpc--sendtransaction)
+      - [index \> RPC \> SimulateTransaction](#index--rpc--simulatetransaction)
+    - [Websocket Subscriptions](#websocket-subscriptions)
+      - [index \> WS Subscriptions \> AccountSubscribe](#index--ws-subscriptions--accountsubscribe)
+      - [index \> WS Subscriptions \> LogsSubscribe](#index--ws-subscriptions--logssubscribe)
+      - [index \> WS Subscriptions \> ProgramSubscribe](#index--ws-subscriptions--programsubscribe)
+      - [index \> WS Subscriptions \> RootSubscribe](#index--ws-subscriptions--rootsubscribe)
+      - [index \> WS Subscriptions \> SignatureSubscribe](#index--ws-subscriptions--signaturesubscribe)
+      - [index \> WS Subscriptions \> SlotSubscribe](#index--ws-subscriptions--slotsubscribe)
+      - [index \> WS Subscriptions \> VoteSubscribe](#index--ws-subscriptions--votesubscribe)
+  - [Contributing](#contributing)
+  - [License](#license)
+  - [Credits](#credits)
 
 ### RPC Methods
 
@@ -1839,7 +1871,8 @@ func main() {
 
 #### [index](#contents) > [RPC](#rpc-methods) > GetLatestBlockhash
 
-NEW: This method is only available in solana-core v1.9 or newer. Please use getRecentBlockhash for solana-core v1.8
+NEW: This method is only available in solana-core v1.9 or newer. Please use
+getRecentBlockhash for solana-core v1.8
 
 ```go
 package main
@@ -2223,6 +2256,7 @@ func main() {
   spew.Dump(recent)
 }
 ```
+
 #### [index](#contents) > [RPC](#rpc-methods) > GetRecentPerformanceSamples
 
 ```go
@@ -2955,7 +2989,7 @@ import (
 )
 
 func main() {
-  ctx := context.Background()	
+  ctx := context.Background()
   client, err := ws.Connect(context.Background(), rpc.MainNetBeta_WS)
   if err != nil {
     panic(err)
@@ -3018,7 +3052,7 @@ import (
 )
 
 func main() {
-  ctx := context.Background()	
+  ctx := context.Background()
   client, err := ws.Connect(context.Background(), rpc.MainNetBeta_WS)
   if err != nil {
     panic(err)
@@ -3081,7 +3115,7 @@ import (
 )
 
 func main() {
-  ctx := context.Background()	
+  ctx := context.Background()
   client, err := ws.Connect(context.Background(), rpc.MainNetBeta_WS)
   if err != nil {
     panic(err)
@@ -3273,7 +3307,8 @@ func main() {
 
 ## Contributing
 
-We encourage everyone to contribute, submit issues, PRs, discuss. Every kind of help is welcome.
+We encourage everyone to contribute, submit issues, PRs, discuss. Every kind of
+help is welcome.
 
 ## License
 
@@ -3281,4 +3316,6 @@ We encourage everyone to contribute, submit issues, PRs, discuss. Every kind of 
 
 ## Credits
 
-- Gopher logo was originally created by Takuya Ueda (https://twitter.com/tenntenn). Licensed under the Creative Commons 3.0 Attributions license.
+- Gopher logo was originally created by Takuya Ueda
+  (https://twitter.com/tenntenn). Licensed under the Creative Commons 3.0
+  Attributions license.
