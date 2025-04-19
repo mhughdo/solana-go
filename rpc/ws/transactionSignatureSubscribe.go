@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gagliardetto/solana-go"
@@ -115,13 +116,13 @@ func (cl *Client) transactionSignatureSubscribe(
 	}, nil
 }
 
-func (sw *TransactionSignatureSubscription) Recv() (*TransactionSignatureResult, error) {
+func (sw *TransactionSignatureSubscription) Recv(ctx context.Context) (*TransactionSignatureResult, error) {
 	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case d, ok := <-sw.sub.stream:
 		if !ok {
-			if !ok {
-				return nil, ErrSubscriptionClosed
-			}
+			return nil, ErrSubscriptionClosed
 		}
 		return d.(*TransactionSignatureResult), nil
 	case err := <-sw.sub.err:
@@ -131,6 +132,19 @@ func (sw *TransactionSignatureSubscription) Recv() (*TransactionSignatureResult,
 
 func (sw *TransactionSignatureSubscription) Err() <-chan error {
 	return sw.sub.err
+}
+
+
+func (sw *TransactionSignatureSubscription) AnyResponse() <-chan any {
+	typedChan := make(chan any, 1)
+	go func(ch chan any) {
+		d, ok := <-sw.sub.stream
+		if !ok {
+			return
+		}
+		ch <- d
+	}(typedChan)
+	return typedChan
 }
 
 func (sw *TransactionSignatureSubscription) Response() <-chan *TransactionSignatureResult {
