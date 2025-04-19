@@ -9,6 +9,22 @@ import (
 
 var ErrInvalidParams = fmt.Errorf("invalid params")
 
+type TransactionSubscribeMethodProvider string
+
+const (
+	TransactionSubscribeMethodProviderHelius TransactionSubscribeMethodProvider = "helius"
+	TransactionSubscribeMethodProviderTriton TransactionSubscribeMethodProvider = "triton"
+)
+
+func (p TransactionSubscribeMethodProvider) isValid() bool {
+	switch p {
+	case TransactionSubscribeMethodProviderHelius, TransactionSubscribeMethodProviderTriton:
+		return true
+	default:
+		return false
+	}
+}
+
 type TransactionSignatureSubscription struct {
 	sub *Subscription
 }
@@ -29,15 +45,33 @@ type TransactionSignatureResult struct {
 func (cl *Client) TransactionSignatureSubscribe(
 	accountInclude []string,
 	accountRequired []string,
+	methodProvider TransactionSubscribeMethodProvider,
 	commitment rpc.CommitmentType,
 ) (*TransactionSignatureSubscription, error) {
 	params := make([]any, 0, 1)
 	param := rpc.M{}
-	if len(accountInclude) > 0 {
-		param["accountInclude"] = accountInclude
+	if !methodProvider.isValid() {
+		return nil, ErrInvalidParams
 	}
-	if len(accountRequired) > 0 {
-		param["accountRequired"] = accountRequired
+	switch methodProvider {
+	case TransactionSubscribeMethodProviderHelius:
+		if len(accountInclude) > 0 {
+			param["accountInclude"] = accountInclude
+		}
+		if len(accountRequired) > 0 {
+			param["accountRequired"] = accountRequired
+		}
+	case TransactionSubscribeMethodProviderTriton:
+		accountsParam := rpc.M{}
+		if len(accountInclude) > 0 {
+			accountsParam["include"] = accountInclude
+		}
+		if len(accountRequired) > 0 {
+			accountsParam["required"] = accountRequired
+		}
+		param["accounts"] = accountsParam
+	default:
+		return nil, ErrInvalidParams
 	}
 	if len(param) == 0 {
 		return nil, ErrInvalidParams
