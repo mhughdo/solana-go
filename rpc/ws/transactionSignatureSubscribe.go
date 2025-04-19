@@ -17,15 +17,6 @@ const (
 	TransactionSubscribeMethodProviderTriton TransactionSubscribeMethodProvider = "triton"
 )
 
-func (p TransactionSubscribeMethodProvider) isValid() bool {
-	switch p {
-	case TransactionSubscribeMethodProviderHelius, TransactionSubscribeMethodProviderTriton:
-		return true
-	default:
-		return false
-	}
-}
-
 type TransactionSignatureSubscription struct {
 	sub *Subscription
 }
@@ -49,11 +40,8 @@ func (cl *Client) TransactionSignatureSubscribe(
 	methodProvider TransactionSubscribeMethodProvider,
 	commitment rpc.CommitmentType,
 ) (*TransactionSignatureSubscription, error) {
-	params := make([]any, 0, 1)
+	params := make([]any, 0, 3)
 	param := rpc.M{}
-	if !methodProvider.isValid() {
-		return nil, ErrInvalidParams
-	}
 	switch methodProvider {
 	case TransactionSubscribeMethodProviderHelius:
 		if len(accountInclude) > 0 {
@@ -91,7 +79,7 @@ func (cl *Client) transactionSignatureSubscribe(
 	commitment rpc.CommitmentType,
 ) (*TransactionSignatureSubscription, error) {
 	conf := map[string]interface{}{}
-	conf["transaction_details"] = "full"
+	conf["transactionDetails"] = "full"
 	conf["maxSupportedTransactionVersion"] = 0
 	if commitment != "" {
 		conf["commitment"] = commitment
@@ -133,7 +121,6 @@ func (sw *TransactionSignatureSubscription) Recv(ctx context.Context) (*Transact
 func (sw *TransactionSignatureSubscription) Err() <-chan error {
 	return sw.sub.err
 }
-
 
 func (sw *TransactionSignatureSubscription) AnyResponse() <-chan any {
 	typedChan := make(chan any, 1)
