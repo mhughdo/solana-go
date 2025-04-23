@@ -64,6 +64,11 @@ type response struct {
 	Error   *stdjson.RawMessage `json:"error"`
 }
 
+type shortResponse struct {
+	Params *params             `json:"params"`
+	Error  *stdjson.RawMessage `json:"error"`
+}
+
 type params struct {
 	Result       *stdjson.RawMessage `json:"result"`
 	Error        *stdjson.RawMessage `json:"error"`

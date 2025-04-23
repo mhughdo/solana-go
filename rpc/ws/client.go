@@ -353,7 +353,7 @@ func (c *Client) subscribe(
 }
 
 func decodeResponseFromReader(r io.Reader, reply interface{}) (err error) {
-	var c *response
+	var c *shortResponse
 	if err := json.NewDecoder(r).Decode(&c); err != nil {
 		return err
 	}
