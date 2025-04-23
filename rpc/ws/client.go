@@ -377,7 +377,7 @@ func decodeResponseFromReader(r io.Reader, reply interface{}) (err error) {
 }
 
 func decodeResponseFromMessage(r []byte, reply interface{}) (err error) {
-	var c *response
+	var c *shortResponse
 	if err := json.Unmarshal(r, &c); err != nil {
 		return err
 	}
