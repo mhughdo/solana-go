@@ -202,6 +202,105 @@ func (p Signature) String() string {
 	return base58.Encode(p[:])
 }
 
+// RawSolanaSignature represents a Solana signature that doesn't decode base58 on JSON unmarshaling
+// This is useful when parsing large numbers of responses concurrently to avoid CPU-intensive base58 decoding
+type RawSolanaSignature []byte
+
+var zeroRawSignature = RawSolanaSignature{}
+
+// NewRawSolanaSignature creates a new RawSolanaSignature from a base58-encoded string
+func NewRawSolanaSignature(s string) RawSolanaSignature {
+	return RawSolanaSignature(s)
+}
+
+// NewRawSolanaSignatureFromSignature creates a new RawSolanaSignature from a Signature
+func NewRawSolanaSignatureFromSignature(sig Signature) RawSolanaSignature {
+	return RawSolanaSignature(sig.String())
+}
+
+// String returns the base58-encoded signature string
+func (r RawSolanaSignature) String() string {
+	return string(r)
+}
+
+// IsZero checks if the signature is zero
+func (r RawSolanaSignature) IsZero() bool {
+	return len(r) == 0 || r.Equals(zeroRawSignature)
+}
+
+// Equals checks if the signature equals another signature
+func (r RawSolanaSignature) Equals(other RawSolanaSignature) bool {
+	if len(r) != len(other) {
+		return false
+	}
+	for i := range r {
+		if r[i] != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// Verify checks that the signature is valid for the given public key and message.
+func (r RawSolanaSignature) Verify(pubkey PublicKey, msg []byte) bool {
+	sig, err := r.ToSignature()
+	if err != nil {
+		return false
+	}
+	return sig.Verify(pubkey, msg)
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (r RawSolanaSignature) MarshalText() ([]byte, error) {
+	return r, nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (r *RawSolanaSignature) UnmarshalText(data []byte) error {
+	*r = RawSolanaSignature(data)
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaler interface
+func (r RawSolanaSignature) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(r))
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface
+// It simply stores the raw string as bytes without decoding base58
+func (r *RawSolanaSignature) UnmarshalJSON(data []byte) error {
+	// Check if the data is a JSON string (starts and ends with quotes)
+	if len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"' {
+		// Store only the string content (without quotes)
+		*r = RawSolanaSignature(data[1 : len(data)-1])
+		return nil
+	}
+
+	// Handle null or other values
+	if len(data) == 0 || string(data) == "null" {
+		*r = RawSolanaSignature{}
+		return nil
+	}
+
+	return fmt.Errorf("invalid JSON for RawSolanaSignature: %s", string(data))
+}
+
+// ToSignature converts the RawSolanaSignature to a regular Signature
+// This is when you actually need to use the decoded value
+func (r RawSolanaSignature) ToSignature() (Signature, error) {
+	return SignatureFromBase58(string(r))
+}
+
+// MustToSignature converts the RawSolanaSignature to a regular Signature
+// Panics on error.
+func (r RawSolanaSignature) MustToSignature() Signature {
+	sig, err := r.ToSignature()
+	if err != nil {
+		panic(err)
+	}
+	return sig
+}
+
 type Base64 []byte
 
 func (t Base64) MarshalJSON() ([]byte, error) {
