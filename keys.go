@@ -331,6 +331,133 @@ func formatShortPubkey(n int, pubkey PublicKey) string {
 	return str[:n] + "..." + str[len(str)-n:]
 }
 
+// RawPublicKey represents a Solana public key that doesn't decode base58 on JSON unmarshaling
+// This is useful when parsing large numbers of responses concurrently to avoid CPU-intensive base58 decoding
+type RawPublicKey []byte
+
+var zeroRawPublicKey = RawPublicKey{}
+
+// NewRawPublicKey creates a new RawPublicKey from a base58-encoded string
+func NewRawPublicKey(s string) RawPublicKey {
+	return RawPublicKey(s)
+}
+
+// NewRawPublicKeyFromPublicKey creates a new RawPublicKey from a PublicKey
+func NewRawPublicKeyFromPublicKey(pub PublicKey) RawPublicKey {
+	return RawPublicKey(pub.String())
+}
+
+// String returns the public key string
+func (r RawPublicKey) String() string {
+	return string(r)
+}
+
+// IsZero checks if the public key is zero
+func (r RawPublicKey) IsZero() bool {
+	return len(r) == 0 || r.Equals(zeroRawPublicKey)
+}
+
+// Equals checks if the public key equals another public key
+func (r RawPublicKey) Equals(other RawPublicKey) bool {
+	if len(r) != len(other) {
+		return false
+	}
+	for i := range r {
+		if r[i] != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (r RawPublicKey) MarshalText() ([]byte, error) {
+	return r, nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (r *RawPublicKey) UnmarshalText(data []byte) error {
+	*r = RawPublicKey(data)
+	return nil
+}
+
+// MarshalJSON implements the json.Marshaler interface
+func (r RawPublicKey) MarshalJSON() ([]byte, error) {
+	return json.Marshal(string(r))
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface
+// It simply stores the raw string as bytes without decoding base58
+func (r *RawPublicKey) UnmarshalJSON(data []byte) error {
+	// Check if the data is a JSON string (starts and ends with quotes)
+	if len(data) >= 2 && data[0] == '"' && data[len(data)-1] == '"' {
+		// Store only the string content (without quotes)
+		*r = RawPublicKey(data[1 : len(data)-1])
+		return nil
+	}
+
+	// Handle null or other values
+	if len(data) == 0 || string(data) == "null" {
+		*r = RawPublicKey{}
+		return nil
+	}
+
+	return fmt.Errorf("invalid JSON for RawPublicKey: %s", string(data))
+}
+
+// ToPublicKey converts the RawPublicKey to a regular PublicKey
+// This is when you actually need to use the decoded value
+func (r RawPublicKey) ToPublicKey() (PublicKey, error) {
+	return PublicKeyFromBase58(string(r))
+}
+
+// MustToPublicKey converts the RawPublicKey to a regular PublicKey
+// Panics on error.
+func (r RawPublicKey) MustToPublicKey() PublicKey {
+	pub, err := r.ToPublicKey()
+	if err != nil {
+		panic(err)
+	}
+	return pub
+}
+
+// Bytes returns the raw bytes of the public key (not decoded)
+func (r RawPublicKey) Bytes() []byte {
+	return r
+}
+
+// MarshalBSON implements the bson.Marshaler interface.
+func (r RawPublicKey) MarshalBSON() ([]byte, error) {
+	return bson.Marshal(string(r))
+}
+
+// UnmarshalBSON implements the bson.Unmarshaler interface.
+func (r *RawPublicKey) UnmarshalBSON(data []byte) (err error) {
+	var s string
+	if err := bson.Unmarshal(data, &s); err != nil {
+		return err
+	}
+
+	*r = RawPublicKey(s)
+	return nil
+}
+
+// MarshalBSONValue implements the bson.ValueMarshaler interface.
+func (r RawPublicKey) MarshalBSONValue() (bsontype.Type, []byte, error) {
+	return bson.MarshalValue(string(r))
+}
+
+// UnmarshalBSONValue implements the bson.ValueUnmarshaler interface.
+func (r *RawPublicKey) UnmarshalBSONValue(t bsontype.Type, data []byte) (err error) {
+	var s string
+	if err := bson.UnmarshalValue(t, data, &s); err != nil {
+		return err
+	}
+
+	*r = RawPublicKey(s)
+	return nil
+}
+
 type PublicKeySlice []PublicKey
 
 // UniqueAppend appends the provided pubkey only if it is not

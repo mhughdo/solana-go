@@ -161,6 +161,91 @@ type TokenBalance struct {
 	UiTokenAmount *UiTokenAmount   `json:"uiTokenAmount"`
 }
 
+// TokenBalanceG is a generic version of rpc.TokenBalance that allows for either regular or raw public key types
+type TokenBalanceG[P solana.PublicKey | solana.RawPublicKey] struct {
+	// Index of the account in which the token balance is provided for.
+	AccountIndex uint16 `json:"accountIndex"`
+
+	// Pubkey of token balance's owner.
+	Owner *P `json:"owner,omitempty"`
+	// Pubkey of token program.
+	ProgramId *P `json:"programId,omitempty"`
+
+	// Pubkey of the token's mint.
+	Mint          P              `json:"mint"`
+	UiTokenAmount *UiTokenAmount `json:"uiTokenAmount"`
+}
+
+// RawTokenBalanceToTokenBalance converts a TokenBalanceG with RawPublicKey to a regular TokenBalance.
+// This function performs base58 decoding of the public keys.
+func RawTokenBalanceToTokenBalance(tb TokenBalanceG[solana.RawPublicKey]) (TokenBalance, error) {
+	// Decode the mint
+	mint, err := tb.Mint.ToPublicKey()
+	if err != nil {
+		return TokenBalance{}, fmt.Errorf("failed to decode mint: %w", err)
+	}
+
+	result := TokenBalance{
+		AccountIndex:  tb.AccountIndex,
+		UiTokenAmount: tb.UiTokenAmount,
+		Mint:          mint,
+	}
+
+	// Handle optional owner
+	if tb.Owner != nil {
+		owner, err := tb.Owner.ToPublicKey()
+		if err != nil {
+			return TokenBalance{}, fmt.Errorf("failed to decode owner: %w", err)
+		}
+		result.Owner = &owner
+	}
+
+	// Handle optional program ID
+	if tb.ProgramId != nil {
+		programId, err := tb.ProgramId.ToPublicKey()
+		if err != nil {
+			return TokenBalance{}, fmt.Errorf("failed to decode program ID: %w", err)
+		}
+		result.ProgramId = &programId
+	}
+
+	return result, nil
+}
+
+// MustRawTokenBalanceToTokenBalance converts a TokenBalanceG with RawPublicKey to a regular TokenBalance.
+// Panics if any conversion error occurs.
+func MustRawTokenBalanceToTokenBalance(tb TokenBalanceG[solana.RawPublicKey]) TokenBalance {
+	result, err := RawTokenBalanceToTokenBalance(tb)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
+// RawTokenBalancesToTokenBalances converts a slice of TokenBalanceG with RawPublicKey to a slice of TokenBalance.
+// Returns an error if any conversion fails.
+func RawTokenBalancesToTokenBalances(balances []TokenBalanceG[solana.RawPublicKey]) ([]TokenBalance, error) {
+	result := make([]TokenBalance, len(balances))
+	for i, balance := range balances {
+		converted, err := RawTokenBalanceToTokenBalance(balance)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert token balance at index %d: %w", i, err)
+		}
+		result[i] = converted
+	}
+	return result, nil
+}
+
+// MustRawTokenBalancesToTokenBalances converts a slice of TokenBalanceG with RawPublicKey to a slice of TokenBalance.
+// Panics if any conversion error occurs.
+func MustRawTokenBalancesToTokenBalances(balances []TokenBalanceG[solana.RawPublicKey]) []TokenBalance {
+	result, err := RawTokenBalancesToTokenBalances(balances)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
 type UiTokenAmount struct {
 	// Raw amount of tokens as a string, ignoring decimals.
 	Amount string `json:"amount"`
