@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	sjson "encoding/json"
+
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 )
@@ -37,9 +39,9 @@ type TransactionSignatureResult struct {
 type TransactionSignatureResultG[S solana.Signature | solana.RawSolanaSignature, P solana.PublicKey | solana.RawPublicKey] struct {
 	Transaction struct {
 		Meta struct {
-			LogMessages       []string               `json:"logMessages"`
-			PreTokenBalances  []rpc.TokenBalanceG[P] `json:"preTokenBalances"`
-			PostTokenBalances []rpc.TokenBalanceG[P] `json:"postTokenBalances"`
+			LogMessages sjson.RawMessage `json:"logMessages"`
+			// PreTokenBalances  []rpc.TokenBalanceG[P] `json:"preTokenBalances"`
+			// PostTokenBalances []rpc.TokenBalanceG[P] `json:"postTokenBalances"`
 		} `json:"meta"`
 	} `json:"transaction"`
 	Signature S      `json:"signature"`
@@ -210,18 +212,6 @@ func (sw *TransactionSignatureSubscription) Err() <-chan error {
 	return sw.sub.err
 }
 
-func (sw *TransactionSignatureSubscription) AnyResponse() <-chan any {
-	typedChan := make(chan any, 1)
-	go func(ch chan any) {
-		d, ok := <-sw.sub.stream
-		if !ok {
-			return
-		}
-		ch <- d
-	}(typedChan)
-	return typedChan
-}
-
 func (sw *TransactionSignatureSubscription) Response() <-chan *TransactionSignatureResult {
 	typedChan := make(chan *TransactionSignatureResult, 1)
 	go func(ch chan *TransactionSignatureResult) {
@@ -260,18 +250,6 @@ func (sw *TransactionSignatureSubscriptionG[S, P]) Recv(ctx context.Context) (*T
 
 func (sw *TransactionSignatureSubscriptionG[S, P]) Err() <-chan error {
 	return sw.sub.err
-}
-
-func (sw *TransactionSignatureSubscriptionG[S, P]) AnyResponse() <-chan any {
-	typedChan := make(chan any, 1)
-	go func(ch chan any) {
-		d, ok := <-sw.sub.stream
-		if !ok {
-			return
-		}
-		ch <- d
-	}(typedChan)
-	return typedChan
 }
 
 func (sw *TransactionSignatureSubscriptionG[S, P]) Response() <-chan *TransactionSignatureResultG[S, P] {
