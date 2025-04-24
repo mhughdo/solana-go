@@ -17,8 +17,6 @@ package ws
 import (
 	"context"
 
-	sjson "encoding/json"
-
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 )
@@ -54,7 +52,7 @@ type LogResultG[S solana.Signature | solana.RawSolanaSignature, P solana.PublicK
 		// during execution, null if simulation failed before the transaction
 		// was able to execute (for example due to an invalid blockhash
 		// or signature verification failure)
-		Logs sjson.RawMessage `json:"logs"`
+		Logs []string `json:"logs"`
 	} `json:"value"`
 }
 

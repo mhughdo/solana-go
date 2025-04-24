@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	sjson "encoding/json"
-
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 )
@@ -39,39 +37,67 @@ type TransactionSignatureResult struct {
 type TransactionSignatureResultG[S solana.Signature | solana.RawSolanaSignature, P solana.PublicKey | solana.RawPublicKey] struct {
 	Transaction struct {
 		Meta struct {
-			LogMessages sjson.RawMessage `json:"logMessages"`
-			// PreTokenBalances  []rpc.TokenBalanceG[P] `json:"preTokenBalances"`
-			// PostTokenBalances []rpc.TokenBalanceG[P] `json:"postTokenBalances"`
+			LogMessages []string `json:"logMessages"`
 		} `json:"meta"`
 	} `json:"transaction"`
 	Signature S      `json:"signature"`
 	Slot      uint64 `json:"slot"`
 }
 
+type TransactionSignatureSubscribeFilter struct {
+	Vote            bool
+	Failed          bool
+	Signature       solana.Signature
+	AccountInclude  []string
+	AccountExclude  []string
+	AccountRequired []string
+	MethodProvider  TransactionSubscribeMethodProvider
+}
+
+type TransactionSignatureSubscribeOpts struct {
+	DecoderFunc                    decoderFunc
+	Commitment                     rpc.CommitmentType
+	Encoding                       solana.EncodingType
+	TransactionDetails             rpc.TransactionDetailsType
+	Rewards                        *bool
+	MaxSupportedTransactionVersion *uint64
+}
+
 // TransactionSignatureSubscribe subscribes to a transaction signature. Only Helius rpc nodes support this method.
 func (cl *Client) TransactionSignatureSubscribe(
-	accountInclude []string,
-	accountRequired []string,
-	methodProvider TransactionSubscribeMethodProvider,
-	commitment rpc.CommitmentType,
+	filter TransactionSignatureSubscribeFilter,
+	opts *TransactionSignatureSubscribeOpts,
 ) (*TransactionSignatureSubscription, error) {
 	params := make([]any, 0, 3)
 	param := rpc.M{}
-	switch methodProvider {
+	switch filter.MethodProvider {
 	case TransactionSubscribeMethodProviderHelius:
-		if len(accountInclude) > 0 {
-			param["accountInclude"] = accountInclude
+		if len(filter.AccountInclude) > 0 {
+			param["accountInclude"] = filter.AccountInclude
 		}
-		if len(accountRequired) > 0 {
-			param["accountRequired"] = accountRequired
+		if len(filter.AccountRequired) > 0 {
+			param["accountRequired"] = filter.AccountRequired
 		}
+		if len(filter.AccountExclude) > 0 {
+			param["accountExclude"] = filter.AccountExclude
+		}
+		if !filter.Signature.IsZero() {
+			param["signature"] = filter.Signature.String()
+		}
+
 	case TransactionSubscribeMethodProviderTriton:
 		accountsParam := rpc.M{}
-		if len(accountInclude) > 0 {
-			accountsParam["include"] = accountInclude
+		if len(filter.AccountInclude) > 0 {
+			accountsParam["include"] = filter.AccountInclude
 		}
-		if len(accountRequired) > 0 {
-			accountsParam["required"] = accountRequired
+		if len(filter.AccountRequired) > 0 {
+			accountsParam["required"] = filter.AccountRequired
+		}
+		if len(filter.AccountExclude) > 0 {
+			accountsParam["exclude"] = filter.AccountExclude
+		}
+		if !filter.Signature.IsZero() {
+			accountsParam["signature"] = filter.Signature.String()
 		}
 		param["accounts"] = accountsParam
 	default:
@@ -80,40 +106,50 @@ func (cl *Client) TransactionSignatureSubscribe(
 	if len(param) == 0 {
 		return nil, ErrInvalidParams
 	}
-	param["vote"] = false
-	param["failed"] = false
+	param["vote"] = filter.Vote
+	param["failed"] = filter.Failed
 	params = append(params, param)
 	return cl.transactionSignatureSubscribe(
 		params,
-		commitment,
+		opts,
 	)
 }
 
 // TransactionSignatureSubscribeG is a generic version of TransactionSignatureSubscribe that allows for either regular or raw signature/pubkey types
 func TransactionSignatureSubscribeG[S solana.Signature | solana.RawSolanaSignature, P solana.PublicKey | solana.RawPublicKey](
 	cl *Client,
-	accountInclude []string,
-	accountRequired []string,
-	methodProvider TransactionSubscribeMethodProvider,
-	commitment rpc.CommitmentType,
+	filter TransactionSignatureSubscribeFilter,
+	opts *TransactionSignatureSubscribeOpts,
 ) (*TransactionSignatureSubscriptionG[S, P], error) {
 	params := make([]any, 0, 3)
 	param := rpc.M{}
-	switch methodProvider {
+	switch filter.MethodProvider {
 	case TransactionSubscribeMethodProviderHelius:
-		if len(accountInclude) > 0 {
-			param["accountInclude"] = accountInclude
+		if len(filter.AccountInclude) > 0 {
+			param["accountInclude"] = filter.AccountInclude
 		}
-		if len(accountRequired) > 0 {
-			param["accountRequired"] = accountRequired
+		if len(filter.AccountRequired) > 0 {
+			param["accountRequired"] = filter.AccountRequired
+		}
+		if len(filter.AccountExclude) > 0 {
+			param["accountExclude"] = filter.AccountExclude
+		}
+		if !filter.Signature.IsZero() {
+			param["signature"] = filter.Signature.String()
 		}
 	case TransactionSubscribeMethodProviderTriton:
 		accountsParam := rpc.M{}
-		if len(accountInclude) > 0 {
-			accountsParam["include"] = accountInclude
+		if len(filter.AccountInclude) > 0 {
+			accountsParam["include"] = filter.AccountInclude
 		}
-		if len(accountRequired) > 0 {
-			accountsParam["required"] = accountRequired
+		if len(filter.AccountRequired) > 0 {
+			accountsParam["required"] = filter.AccountRequired
+		}
+		if len(filter.AccountExclude) > 0 {
+			accountsParam["exclude"] = filter.AccountExclude
+		}
+		if !filter.Signature.IsZero() {
+			accountsParam["signature"] = filter.Signature.String()
 		}
 		param["accounts"] = accountsParam
 	default:
@@ -122,36 +158,55 @@ func TransactionSignatureSubscribeG[S solana.Signature | solana.RawSolanaSignatu
 	if len(param) == 0 {
 		return nil, ErrInvalidParams
 	}
-	param["vote"] = false
-	param["failed"] = false
+	param["vote"] = filter.Vote
+	param["failed"] = filter.Failed
 	params = append(params, param)
 	return transactionSignatureSubscribeG[S, P](
 		cl,
 		params,
-		commitment,
+		opts,
 	)
 }
 
 func (cl *Client) transactionSignatureSubscribe(
 	params []any,
-	commitment rpc.CommitmentType,
+	opts *TransactionSignatureSubscribeOpts,
 ) (*TransactionSignatureSubscription, error) {
 	conf := map[string]interface{}{}
 	conf["transactionDetails"] = "full"
-	conf["maxSupportedTransactionVersion"] = 0
-	if commitment != "" {
-		conf["commitment"] = commitment
+	conf["maxSupportedTransactionVersion"] = rpc.MaxSupportedTransactionVersion0
+	conf["commitment"] = rpc.CommitmentProcessed
+	if opts != nil {
+		if opts.TransactionDetails != "" {
+			conf["transactionDetails"] = opts.TransactionDetails
+		}
+		if opts.MaxSupportedTransactionVersion != nil {
+			conf["maxSupportedTransactionVersion"] = opts.MaxSupportedTransactionVersion
+		}
+		if opts.Commitment != "" {
+			conf["commitment"] = opts.Commitment
+		}
+		if opts.Encoding != "" {
+			conf["encoding"] = opts.Encoding
+		}
+		if opts.Rewards != nil {
+			conf["rewards"] = opts.Rewards
+		}
+	}
+	decoderFunc := func(msg []byte) (interface{}, error) {
+		var res TransactionSignatureResult
+		err := decodeResponseFromMessage(msg, &res)
+		return &res, err
+	}
+	if opts.DecoderFunc != nil {
+		decoderFunc = opts.DecoderFunc
 	}
 	genSub, err := cl.subscribe(
 		params,
 		conf,
 		"transactionSubscribe",
 		"transactionUnsubscribe",
-		func(msg []byte) (interface{}, error) {
-			var res TransactionSignatureResult
-			err := decodeResponseFromMessage(msg, &res)
-			return &res, err
-		},
+		decoderFunc,
 	)
 
 	if err != nil {
@@ -166,24 +221,43 @@ func (cl *Client) transactionSignatureSubscribe(
 func transactionSignatureSubscribeG[S solana.Signature | solana.RawSolanaSignature, P solana.PublicKey | solana.RawPublicKey](
 	cl *Client,
 	params []any,
-	commitment rpc.CommitmentType,
+	opts *TransactionSignatureSubscribeOpts,
 ) (*TransactionSignatureSubscriptionG[S, P], error) {
 	conf := map[string]interface{}{}
 	conf["transactionDetails"] = "full"
-	conf["maxSupportedTransactionVersion"] = 0
-	if commitment != "" {
-		conf["commitment"] = commitment
+	conf["maxSupportedTransactionVersion"] = rpc.MaxSupportedTransactionVersion0
+	conf["commitment"] = rpc.CommitmentProcessed
+	if opts != nil {
+		if opts.TransactionDetails != "" {
+			conf["transactionDetails"] = opts.TransactionDetails
+		}
+		if opts.MaxSupportedTransactionVersion != nil {
+			conf["maxSupportedTransactionVersion"] = opts.MaxSupportedTransactionVersion
+		}
+		if opts.Commitment != "" {
+			conf["commitment"] = opts.Commitment
+		}
+		if opts.Encoding != "" {
+			conf["encoding"] = opts.Encoding
+		}
+		if opts.Rewards != nil {
+			conf["rewards"] = opts.Rewards
+		}
+	}
+	decoderFunc := func(msg []byte) (interface{}, error) {
+		var res TransactionSignatureResultG[S, P]
+		err := decodeResponseFromMessage(msg, &res)
+		return &res, err
+	}
+	if opts.DecoderFunc != nil {
+		decoderFunc = opts.DecoderFunc
 	}
 	genSub, err := cl.subscribe(
 		params,
 		conf,
 		"transactionSubscribe",
 		"transactionUnsubscribe",
-		func(msg []byte) (interface{}, error) {
-			var res TransactionSignatureResultG[S, P]
-			err := decodeResponseFromMessage(msg, &res)
-			return &res, err
-		},
+		decoderFunc,
 	)
 
 	if err != nil {
