@@ -26,7 +26,6 @@ type TransactionDetailsType string
 const (
 	TransactionDetailsFull       TransactionDetailsType = "full"
 	TransactionDetailsSignatures TransactionDetailsType = "signatures"
-	TransactionDetailsAccounts   TransactionDetailsType = "accounts"
 	TransactionDetailsNone       TransactionDetailsType = "none"
 	TransactionDetailsAccounts   TransactionDetailsType = "accounts"
 )
