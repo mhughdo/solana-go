@@ -28,6 +28,7 @@ const (
 	TransactionDetailsSignatures TransactionDetailsType = "signatures"
 	TransactionDetailsAccounts   TransactionDetailsType = "accounts"
 	TransactionDetailsNone       TransactionDetailsType = "none"
+	TransactionDetailsAccounts   TransactionDetailsType = "accounts"
 )
 
 type GetBlockOpts struct {
