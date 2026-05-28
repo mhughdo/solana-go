@@ -36,7 +36,7 @@ func main() {
 		// Subscribe to log events that mention the provided pubkey:
 		sub, err := client.LogsSubscribeMentions(
 			program,
-			rpc.CommitmentRecent,
+			rpc.CommitmentProcessed,
 		)
 		if err != nil {
 			panic(err)
@@ -55,7 +55,7 @@ func main() {
 		// Subscribe to all log events:
 		sub, err := client.LogsSubscribe(
 			ws.LogsSubscribeFilterAll,
-			rpc.CommitmentRecent,
+			rpc.CommitmentProcessed,
 		)
 		if err != nil {
 			panic(err)

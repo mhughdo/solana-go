@@ -43,7 +43,7 @@ func (cl *Client) VoteSubscribe() (*VoteSubscription, error) {
 		nil,
 		"voteSubscribe",
 		"voteUnsubscribe",
-		func(msg []byte) (interface{}, error) {
+		func(msg []byte) (any, error) {
 			var res VoteResult
 			err := decodeResponseFromMessage(msg, &res)
 			return &res, err
@@ -77,19 +77,6 @@ func (sw *VoteSubscription) Recv(ctx context.Context) (*VoteResult, error) {
 
 func (sw *VoteSubscription) Err() <-chan error {
 	return sw.sub.err
-}
-
-func (sw *VoteSubscription) Response() <-chan *VoteResult {
-	typedChan := make(chan *VoteResult, 1)
-	go func(ch chan *VoteResult) {
-		// TODO: will this subscription yield more than one result?
-		d, ok := <-sw.sub.stream
-		if !ok {
-			return
-		}
-		ch <- d.(*VoteResult)
-	}(typedChan)
-	return typedChan
 }
 
 func (sw *VoteSubscription) Unsubscribe() {

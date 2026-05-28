@@ -21,17 +21,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	stdjson "encoding/json"
 	"fmt"
 	"math/big"
 	"testing"
 
 	"github.com/AlekSi/pointer"
 	bin "github.com/gagliardetto/binary"
+	"github.com/gagliardetto/solana-go"
+	stdjson "github.com/goccy/go-json"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gagliardetto/solana-go"
 )
 
 func TestClient_GetAccountInfo(t *testing.T) {
@@ -51,13 +50,13 @@ func TestClient_GetAccountInfo(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getAccountInfo",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
+				map[string]any{
 					"encoding": "base64",
 				},
 			},
@@ -73,7 +72,7 @@ func TestClient_GetAccountInfo(t *testing.T) {
 			},
 			Value: &Account{
 				Lamports: 999999,
-				Owner:    solana.MustPublicKeyFromBase58("11111111111111111111111111111111"),
+				Owner:    solana.SystemProgramID,
 				Data: &DataBytesOrJSON{
 					rawDataEncoding: solana.EncodingBase64,
 					asDecodedBinary: solana.Data{
@@ -102,7 +101,7 @@ func TestClient_GetAccountInfoWithOpts(t *testing.T) {
 
 	opts := &GetAccountInfoOpts{
 		Encoding:   solana.EncodingJSON,
-		Commitment: CommitmentMax,
+		Commitment: CommitmentFinalized,
 		DataSlice: &DataSlice{
 			Offset: &offset,
 			Length: &length,
@@ -122,16 +121,16 @@ func TestClient_GetAccountInfoWithOpts(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getAccountInfo",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
+				map[string]any{
 					"encoding":   string(solana.EncodingJSON),
-					"commitment": string(CommitmentMax),
-					"dataSlice": map[string]interface{}{
+					"commitment": string(CommitmentFinalized),
+					"dataSlice": map[string]any{
 						"offset": float64(offset),
 						"length": float64(length),
 					},
@@ -143,100 +142,9 @@ func TestClient_GetAccountInfoWithOpts(t *testing.T) {
 	)
 }
 
-func TestClient_GetConfirmedSignaturesForAddress2(t *testing.T) {
-	server, closer := mockJSONRPC(t, stdjson.RawMessage(`{"jsonrpc":"2.0","result":[{"err":null,"memo":null,"signature":"mgw5vw4tnbou1wVStKckVcVncbpRwfZPcMNbVBoigbSPXBMa3857CNzhwoCkRzM5K7nG32wcbpVJDHttQeBRaHB","slot":1}],"id":null}`))
-	defer closer()
-	client := New(server.URL)
-
-	account := solana.MustPublicKeyFromBase58("H7ATJQGhwG8Uf8sUntUognFpsKixPy2buFnXkvyNbGUb")
-	limit := uint64(1)
-	out, err := client.GetConfirmedSignaturesForAddress2(context.Background(), account, &GetConfirmedSignaturesForAddress2Opts{Limit: &limit})
-	require.NoError(t, err)
-
-	// the ID is random, so we can't assert it; let's check that it is set, and then remove it
-	reqBody := server.RequestBody(t)
-	assert.NotNil(t, reqBody["id"])
-	reqBody["id"] = any(nil)
-
-	assert.Equal(t,
-		map[string]interface{}{
-			"id":      any(nil),
-			"jsonrpc": "2.0",
-			"method":  "getConfirmedSignaturesForAddress2",
-			"params": []interface{}{
-				"H7ATJQGhwG8Uf8sUntUognFpsKixPy2buFnXkvyNbGUb",
-				map[string]interface{}{"limit": float64(1)},
-			},
-		},
-		reqBody,
-	)
-
-	expected := []*TransactionSignature{
-		{Slot: 1, Signature: solana.MustSignatureFromBase58("mgw5vw4tnbou1wVStKckVcVncbpRwfZPcMNbVBoigbSPXBMa3857CNzhwoCkRzM5K7nG32wcbpVJDHttQeBRaHB")},
-	}
-
-	assert.Equal(t, GetConfirmedSignaturesForAddress2Result(expected), out)
-}
-
-func TestClient_GetConfirmedTransaction(t *testing.T) {
-	server, closer := mockJSONRPC(t, stdjson.RawMessage(`{"jsonrpc":"2.0","result":{"meta":{"err":null,"fee":5000,"innerInstructions":[],"logMessages":[],"postBalances":[],"preBalances":[],"status":{"Ok":null}},"slot":48291656,"transaction":["AcpmPgtaSCzI2vuOUXduljmnoc1zIqMETzEJ8zmF+\/yy2AABHMNonpVleveVw4a4Fo7LUDWtxo2FkyzFr2x9DQIBAAMB47aX3y9Dfp+\/ycSDXt0Ph3TfZQBqPSXMQYToKtUtr5kNhniVeV7Las6qkeV8d0rksxV9de0GF7p4nzQUVEnrWwEEBAECAwAEdGVzdA==","base64"]},"id":null}`))
-	defer closer()
-	client := New(server.URL)
-
-	out, err := client.GetConfirmedTransaction(
-		context.Background(),
-		solana.MustSignatureFromBase58("53hoZ98EsCMA6L63GWM65M3Bd3WqA4LxD8bcJkbKoKWhbJFqX9M1WZ4fSjt8bYyZn21NwNnV2A25zirBni9Qk6LR"),
-	)
-	require.NoError(t, err)
-
-	// the ID is random, so we can't assert it; let's check that it is set, and then remove it
-	reqBody := server.RequestBody(t)
-	assert.NotNil(t, reqBody["id"])
-	reqBody["id"] = any(nil)
-
-	assert.Equal(t,
-		map[string]interface{}{
-			"id":      any(nil),
-			"jsonrpc": "2.0",
-			"method":  "getConfirmedTransaction",
-			"params": []interface{}{
-				"53hoZ98EsCMA6L63GWM65M3Bd3WqA4LxD8bcJkbKoKWhbJFqX9M1WZ4fSjt8bYyZn21NwNnV2A25zirBni9Qk6LR",
-				"json",
-			},
-		},
-		reqBody,
-	)
-
-	signature, err := solana.SignatureFromBase58("53hoZ98EsCMA6L63GWM65M3Bd3WqA4LxD8bcJkbKoKWhbJFqX9M1WZ4fSjt8bYyZn21NwNnV2A25zirBni9Qk6LR")
-	require.NoError(t, err)
-
-	assert.Equal(t, &TransactionMeta{
-		Fee:               5000,
-		PreBalances:       []uint64{},
-		PostBalances:      []uint64{},
-		InnerInstructions: []InnerInstruction{},
-		LogMessages:       []string{},
-		Status: DeprecatedTransactionMetaStatus{
-			"Ok": nil,
-		},
-	}, out.Meta)
-
-	assert.Equal(t, &solana.Transaction{
-		Message: solana.Message{
-			Header:          solana.MessageHeader{NumRequiredSignatures: 1, NumReadonlySignedAccounts: 0, NumReadonlyUnsignedAccounts: 3},
-			RecentBlockhash: solana.MustHashFromBase58("uoEAQCWCKjV9ecsBvngctJ7upNBZX7hpN4SfdR6TaUz"),
-			AccountKeys:     []solana.PublicKey{solana.MustPublicKeyFromBase58("GKu2xfGZopa8C9K11wduQWgP4W4H7EEcaNdsUb7mxhyr")},
-			Instructions: []solana.CompiledInstruction{
-				{Accounts: []uint16{1, 2, 3, 0}, Data: solana.Base58([]byte{0x74, 0x65, 0x73, 0x74}), ProgramIDIndex: 4},
-			},
-		},
-		Signatures: []solana.Signature{signature},
-	}, out.MustGetTransaction())
-}
-
 // mustAnyToJSON marshals the provided variable
 // to JSON bytes.
-func mustAnyToJSON(raw interface{}) []byte {
+func mustAnyToJSON(raw any) []byte {
 	out, err := json.Marshal(raw)
 	if err != nil {
 		panic(err)
@@ -246,8 +154,8 @@ func mustAnyToJSON(raw interface{}) []byte {
 
 // mustJSONToInterface unmarshals the provided JSON bytes
 // into an `interface{}` type variable, and returns it.
-func mustJSONToInterface(rawJSON []byte) interface{} {
-	var out interface{}
+func mustJSONToInterface(rawJSON []byte) any {
+	var out any
 	err := json.Unmarshal(rawJSON, &out)
 	if err != nil {
 		panic(err)
@@ -258,8 +166,8 @@ func mustJSONToInterface(rawJSON []byte) interface{} {
 // mustJSONToInterfaceWithUseNumber unmarshals the provided JSON bytes
 // into an `interface{}` type variable, and returns it.
 // The decoder is configured with `UseNumber()`.
-func mustJSONToInterfaceWithUseNumber(rawJSON []byte) interface{} {
-	var out interface{}
+func mustJSONToInterfaceWithUseNumber(rawJSON []byte) any {
+	var out any
 	dec := json.NewDecoder(bytes.NewReader(rawJSON))
 	dec.UseNumber()
 	err := dec.Decode(&out)
@@ -274,45 +182,6 @@ func wrapIntoRPC(res string) string {
 	return `{"jsonrpc":"2.0","result":` + res + `,"id":0}`
 }
 
-func TestClient_GetRecentBlockhash(t *testing.T) {
-	responseBody := `{"context":{"slot":83986105},"value":{"blockhash":"DvLEyV2GHk86K5GojpqnRsvhfMF5kdZomKMnhVpvHyqK","feeCalculator":{"lamportsPerSignature":5000}}}`
-	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
-	defer closer()
-
-	client := New(server.URL)
-
-	out, err := client.GetRecentBlockhash(
-		context.Background(),
-		CommitmentMax,
-	)
-	require.NoError(t, err)
-
-	// the ID is random, so we can't assert it; let's check that it is set, and then remove it
-	reqBody := server.RequestBody(t)
-	assert.NotNil(t, reqBody["id"])
-	reqBody["id"] = any(nil)
-
-	assert.Equal(t,
-		map[string]interface{}{
-			"id":      any(nil),
-			"jsonrpc": "2.0",
-			"method":  "getRecentBlockhash",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
-				},
-			},
-		},
-		reqBody,
-	)
-
-	expected := mustJSONToInterface([]byte(responseBody))
-
-	got := mustJSONToInterface(mustAnyToJSON(out))
-
-	assert.Equal(t, expected, got, "both deserialized values must be equal")
-}
-
 func TestClient_GetBalance(t *testing.T) {
 	responseBody := `{"context":{"slot":83987501},"value":19039980000}`
 	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
@@ -325,7 +194,7 @@ func TestClient_GetBalance(t *testing.T) {
 	out, err := client.GetBalance(
 		context.Background(),
 		pubKey,
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -335,14 +204,14 @@ func TestClient_GetBalance(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getBalance",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -356,6 +225,35 @@ func TestClient_GetBalance(t *testing.T) {
 			},
 			Value: 19039980000,
 		}, out)
+}
+
+func TestClient_ContextApiVersion(t *testing.T) {
+	responseBody := `{"context":{"slot":83987501,"apiVersion":"2.2.1"},"value":19039980000}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	pubKey := solana.MustPublicKeyFromBase58("7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932")
+	out, err := client.GetBalance(context.Background(), pubKey, CommitmentFinalized)
+	require.NoError(t, err)
+
+	assert.Equal(t, uint64(83987501), out.Context.Slot)
+	require.NotNil(t, out.Context.ApiVersion)
+	assert.Equal(t, "2.2.1", *out.Context.ApiVersion)
+}
+
+func TestClient_ContextApiVersion_Absent(t *testing.T) {
+	responseBody := `{"context":{"slot":83987501},"value":19039980000}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	pubKey := solana.MustPublicKeyFromBase58("7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932")
+	out, err := client.GetBalance(context.Background(), pubKey, CommitmentFinalized)
+	require.NoError(t, err)
+
+	assert.Equal(t, uint64(83987501), out.Context.Slot)
+	assert.Nil(t, out.Context.ApiVersion)
 }
 
 func TestClient_GetBlock(t *testing.T) {
@@ -378,13 +276,13 @@ func TestClient_GetBlock(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getBlock",
-			"params": []interface{}{
+			"params": []any{
 				float64(block),
-				map[string]interface{}{
+				map[string]any{
 					"encoding": string(solana.EncodingBase64),
 				},
 			},
@@ -538,7 +436,7 @@ func TestClient_GetBlockWithOpts(t *testing.T) {
 		&GetBlockOpts{
 			TransactionDetails:             TransactionDetailsSignatures,
 			Rewards:                        &rewards,
-			Commitment:                     CommitmentMax,
+			Commitment:                     CommitmentFinalized,
 			MaxSupportedTransactionVersion: &maxSupportedTransactionVersion,
 		},
 	)
@@ -550,17 +448,17 @@ func TestClient_GetBlockWithOpts(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getBlock",
-			"params": []interface{}{
+			"params": []any{
 				float64(block),
-				map[string]interface{}{
+				map[string]any{
 					"encoding":                       string(solana.EncodingBase64),
 					"transactionDetails":             string(TransactionDetailsSignatures),
 					"rewards":                        rewards,
-					"commitment":                     string(CommitmentMax),
+					"commitment":                     string(CommitmentFinalized),
 					"maxSupportedTransactionVersion": float64(maxSupportedTransactionVersion),
 				},
 			},
@@ -572,15 +470,22 @@ func TestClient_GetBlockWithOpts(t *testing.T) {
 	// - test also when requesting only signatures
 }
 
-func TestClient_GetBlockHeight(t *testing.T) {
-	responseBody := `69217140`
+func TestClient_GetBlockWithOpts_EncodingJSON(t *testing.T) {
+	// Full EncodingJSON response: transactions are JSON objects, not base64 arrays.
+	// System program (11111111111111111111111111111111) used as second account.
+	responseBody := `{"blockHeight":100,"blockTime":1625227950,"blockhash":"5M77sHdwzH6rckuQwF8HL1w52n7hjrh4GVTFiF6T8QyB","parentSlot":99,"previousBlockhash":"Aq9jSXe1jRzfiaBcRFLe4wm7j499vWVEeFQrq5nnXfZN","rewards":[],"transactions":[{"meta":{"err":null,"fee":5000,"innerInstructions":[],"logMessages":[],"postBalances":[441866063495,1],"postTokenBalances":[],"preBalances":[441866068495,1],"preTokenBalances":[],"rewards":[],"status":{"Ok":null}},"transaction":{"message":{"accountKeys":["EVd8FFVB54svYdZdG6hH4F4hTbqre5mpQ7XyF5rKUmes","11111111111111111111111111111111"],"header":{"numRequiredSignatures":1,"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":1},"recentBlockhash":"Aq9jSXe1jRzfiaBcRFLe4wm7j499vWVEeFQrq5nnXfZN","instructions":[{"accounts":[0,1],"data":"3Bxs4ThLFRfx6J7z","programIdIndex":1}]},"signatures":["D8emaP3CaepSGigD3TCrev7j67yPLMi82qfzTb9iZYPxHcCmm6sQBKTU4bzAee4445zbnbWduVAZ87WfbWbXoAU"]},"version":"legacy"}]}`
 	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
 	defer closer()
+
 	client := New(server.URL)
 
-	out, err := client.GetBlockHeight(
+	block := 42
+	out, err := client.GetBlockWithOpts(
 		context.Background(),
-		CommitmentMax,
+		uint64(block),
+		&GetBlockOpts{
+			Encoding: solana.EncodingJSON,
+		},
 	)
 	require.NoError(t, err)
 
@@ -590,13 +495,159 @@ func TestClient_GetBlockHeight(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
+			"id":      any(nil),
+			"jsonrpc": "2.0",
+			"method":  "getBlock",
+			"params": []any{
+				float64(block),
+				map[string]any{
+					"encoding": string(solana.EncodingJSON),
+				},
+			},
+		},
+		reqBody,
+	)
+
+	require.Len(t, out.Transactions, 1)
+	tx, err := out.Transactions[0].GetTransaction()
+	require.NoError(t, err)
+	require.Len(t, tx.Signatures, 1)
+	require.Len(t, tx.Message.AccountKeys, 2)
+	assert.Equal(t, solana.MustPublicKeyFromBase58("EVd8FFVB54svYdZdG6hH4F4hTbqre5mpQ7XyF5rKUmes"), tx.Message.AccountKeys[0])
+}
+
+func TestClient_GetBlockWithOpts_AccountsMode(t *testing.T) {
+	responseBody := `{"blockHeight":69213636,"blockTime":1625227950,"blockhash":"5M77sHdwzH6rckuQwF8HL1w52n7hjrh4GVTFiF6T8QyB","parentSlot":83987983,"previousBlockhash":"Aq9jSXe1jRzfiaBcRFLe4wm7j499vWVEeFQrq5nnXfZN","rewards":[],"transactions":[{"meta":{"err":null,"fee":5000,"innerInstructions":[],"logMessages":[],"postBalances":[441866063495,40905918933763,1],"postTokenBalances":[],"preBalances":[441866068495,40905918933763,1],"preTokenBalances":[],"rewards":[],"status":{"Ok":null}},"transaction":{"signatures":["D8emaP3CaepSGigD3TCrev7j67yPLMi82qfzTb9iZYPxHcCmm6sQBKTU4bzAee4445zbnbWduVAZ87WfbWbXoAU"],"accountKeys":[{"pubkey":"EVd8FFVB54svYdZdG6hH4F4hTbqre5mpQ7XyF5rKUmes","signer":true,"writable":true,"source":"transaction"},{"pubkey":"72miaovmbPqccdbAA861r2uxwB5yL1sMjrgbCnc4JfVT","signer":false,"writable":true,"source":"transaction"},{"pubkey":"Vote111111111111111111111111111111111111111","signer":false,"writable":false,"source":"lookupTable"}]},"version":0}]}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	maxVersion := uint64(1)
+	rewards := false
+	out, err := client.GetBlockWithOpts(
+		context.Background(),
+		389906766,
+		&GetBlockOpts{
+			Commitment:                     CommitmentFinalized,
+			Encoding:                       solana.EncodingBase64,
+			TransactionDetails:             TransactionDetailsAccounts,
+			Rewards:                        &rewards,
+			MaxSupportedTransactionVersion: &maxVersion,
+		},
+	)
+	require.NoError(t, err)
+
+	// Verify the request params
+	reqBody := server.RequestBody(t)
+	assert.NotNil(t, reqBody["id"])
+	reqBody["id"] = any(nil)
+
+	assert.Equal(t,
+		map[string]any{
+			"id":      any(nil),
+			"jsonrpc": "2.0",
+			"method":  "getBlock",
+			"params": []any{
+				float64(389906766),
+				map[string]any{
+					"encoding":                       string(solana.EncodingBase64),
+					"transactionDetails":             string(TransactionDetailsAccounts),
+					"rewards":                        rewards,
+					"commitment":                     string(CommitmentFinalized),
+					"maxSupportedTransactionVersion": float64(1),
+				},
+			},
+		},
+		reqBody,
+	)
+
+	// Verify we can extract account keys from transactions in "accounts" mode
+	require.Len(t, out.Transactions, 1)
+	tx := out.Transactions[0]
+
+	accountKeys, err := tx.GetAccountKeys()
+	require.NoError(t, err)
+
+	require.Len(t, accountKeys.Signatures, 1)
+	assert.Equal(t,
+		solana.MustSignatureFromBase58("D8emaP3CaepSGigD3TCrev7j67yPLMi82qfzTb9iZYPxHcCmm6sQBKTU4bzAee4445zbnbWduVAZ87WfbWbXoAU"),
+		accountKeys.Signatures[0],
+	)
+
+	require.Len(t, accountKeys.AccountKeys, 3)
+
+	// First account: signer + writable, source=transaction
+	assert.Equal(t, solana.MustPublicKeyFromBase58("EVd8FFVB54svYdZdG6hH4F4hTbqre5mpQ7XyF5rKUmes"), accountKeys.AccountKeys[0].Pubkey)
+	assert.True(t, accountKeys.AccountKeys[0].Signer)
+	assert.True(t, accountKeys.AccountKeys[0].Writable)
+	require.NotNil(t, accountKeys.AccountKeys[0].Source)
+	assert.Equal(t, AccountKeySourceTransaction, *accountKeys.AccountKeys[0].Source)
+
+	// Second account: not signer, writable, source=transaction
+	assert.Equal(t, solana.MustPublicKeyFromBase58("72miaovmbPqccdbAA861r2uxwB5yL1sMjrgbCnc4JfVT"), accountKeys.AccountKeys[1].Pubkey)
+	assert.False(t, accountKeys.AccountKeys[1].Signer)
+	assert.True(t, accountKeys.AccountKeys[1].Writable)
+	require.NotNil(t, accountKeys.AccountKeys[1].Source)
+	assert.Equal(t, AccountKeySourceTransaction, *accountKeys.AccountKeys[1].Source)
+
+	// Third account: not signer, not writable, source=lookupTable
+	assert.Equal(t, solana.MustPublicKeyFromBase58("Vote111111111111111111111111111111111111111"), accountKeys.AccountKeys[2].Pubkey)
+	assert.False(t, accountKeys.AccountKeys[2].Signer)
+	assert.False(t, accountKeys.AccountKeys[2].Writable)
+	require.NotNil(t, accountKeys.AccountKeys[2].Source)
+	assert.Equal(t, AccountKeySourceLookupTable, *accountKeys.AccountKeys[2].Source)
+}
+
+func TestClient_GetBlockWithOpts_AccountsMode_GetTransactionFails(t *testing.T) {
+	// When using "accounts" mode, calling GetTransaction() should fail
+	// because there's no binary transaction data
+	responseBody := `{"blockHeight":69213636,"blockTime":1625227950,"blockhash":"5M77sHdwzH6rckuQwF8HL1w52n7hjrh4GVTFiF6T8QyB","parentSlot":83987983,"previousBlockhash":"Aq9jSXe1jRzfiaBcRFLe4wm7j499vWVEeFQrq5nnXfZN","rewards":[],"transactions":[{"meta":{"err":null,"fee":5000,"innerInstructions":[],"logMessages":[],"postBalances":[100],"postTokenBalances":[],"preBalances":[200],"preTokenBalances":[],"rewards":[],"status":{"Ok":null}},"transaction":{"signatures":["D8emaP3CaepSGigD3TCrev7j67yPLMi82qfzTb9iZYPxHcCmm6sQBKTU4bzAee4445zbnbWduVAZ87WfbWbXoAU"],"accountKeys":[{"pubkey":"EVd8FFVB54svYdZdG6hH4F4hTbqre5mpQ7XyF5rKUmes","signer":true,"writable":true,"source":"transaction"}]}}]}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	out, err := client.GetBlockWithOpts(context.Background(), 100, nil)
+	require.NoError(t, err)
+
+	require.Len(t, out.Transactions, 1)
+
+	// GetTransaction should fail — accounts mode returns JSON without a message field.
+	_, err = out.Transactions[0].GetTransaction()
+	assert.Error(t, err)
+
+	// GetAccountKeys should succeed
+	accountKeys, err := out.Transactions[0].GetAccountKeys()
+	require.NoError(t, err)
+	require.Len(t, accountKeys.AccountKeys, 1)
+	assert.Equal(t, solana.MustPublicKeyFromBase58("EVd8FFVB54svYdZdG6hH4F4hTbqre5mpQ7XyF5rKUmes"), accountKeys.AccountKeys[0].Pubkey)
+}
+
+func TestClient_GetBlockHeight(t *testing.T) {
+	responseBody := `69217140`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	out, err := client.GetBlockHeight(
+		context.Background(),
+		CommitmentFinalized,
+	)
+	require.NoError(t, err)
+
+	// the ID is random, so we can't assert it; let's check that it is set, and then remove it
+	reqBody := server.RequestBody(t)
+	assert.NotNil(t, reqBody["id"])
+	reqBody["id"] = any(nil)
+
+	assert.Equal(t,
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getBlockHeight",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+			"params": []any{
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -627,11 +678,11 @@ func TestClient_GetBlockProduction(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getBlockProduction",
-			"params":  []interface{}{},
+			"params":  []any{},
 		},
 		reqBody,
 	)
@@ -657,7 +708,7 @@ func TestClient_GetBlockProductionWithOpts(t *testing.T) {
 	_, err := client.GetBlockProductionWithOpts(
 		context.Background(),
 		&GetBlockProductionOpts{
-			Commitment: CommitmentMax,
+			Commitment: CommitmentFinalized,
 			Range: &SlotRangeRequest{
 				FirstSlot: firstSlot,
 				LastSlot:  &lastSlot,
@@ -673,14 +724,14 @@ func TestClient_GetBlockProductionWithOpts(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getBlockProduction",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
-					"range": map[string]interface{}{
+			"params": []any{
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
+					"range": map[string]any{
 						"firstSlot": float64(firstSlot),
 						"lastSlot":  float64(lastSlot),
 					},
@@ -712,19 +763,19 @@ func TestClient_GetBlockCommitment(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getBlockCommitment",
-			"params": []interface{}{
+			"params": []any{
 				float64(block),
 			},
 		},
 		reqBody,
 	)
 
-	expected := map[string]interface{}{
-		"commitment": []interface{}{
+	expected := map[string]any{
+		"commitment": []any{
 			stdjson.Number("0"),
 			stdjson.Number("0"),
 			stdjson.Number("0"),
@@ -778,7 +829,7 @@ func TestClient_GetBlocks(t *testing.T) {
 		context.Background(),
 		uint64(startSlot),
 		&endSlot,
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -788,15 +839,15 @@ func TestClient_GetBlocks(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getBlocks",
-			"params": []interface{}{
+			"params": []any{
 				float64(startSlot),
 				float64(endSlot),
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -822,7 +873,7 @@ func TestClient_GetBlocksWithLimit(t *testing.T) {
 		context.Background(),
 		uint64(startSlot),
 		limit,
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -832,15 +883,15 @@ func TestClient_GetBlocksWithLimit(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getBlocksWithLimit",
-			"params": []interface{}{
+			"params": []any{
 				float64(startSlot),
 				float64(limit),
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -873,11 +924,11 @@ func TestClient_GetBlockTime(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getBlockTime",
-			"params": []interface{}{
+			"params": []any{
 				float64(block),
 			},
 		},
@@ -908,7 +959,7 @@ func TestClient_GetClusterNodes(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getClusterNodes",
@@ -923,6 +974,54 @@ func TestClient_GetClusterNodes(t *testing.T) {
 	assert.Equal(t, expected, got, "both deserialized values must be equal")
 }
 
+func TestClient_GetClusterNodes_AllFields(t *testing.T) {
+	responseBody := `[{"pubkey":"hyp3Eo67t6FgeuWg5Qxbeme8NPXJPXXdKT4iJ4DsLf2","gossip":"127.0.0.1:8000","tpu":null,"tpuQuic":"127.0.0.1:8009","tpuForwards":null,"tpuForwardsQuic":"127.0.0.1:8010","tpuVote":"127.0.0.1:8005","serveRepair":"127.0.0.1:8008","rpc":"127.0.0.1:8899","pubsub":"127.0.0.1:8900","version":"2.2.1","featureSet":3580551090,"shredVersion":50093,"clientId":"Agave"}]`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	out, err := client.GetClusterNodes(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, out, 1)
+	node := out[0]
+
+	assert.Equal(t, solana.MustPublicKeyFromBase58("hyp3Eo67t6FgeuWg5Qxbeme8NPXJPXXdKT4iJ4DsLf2"), node.Pubkey)
+	assert.Equal(t, pointer.ToString("127.0.0.1:8000"), node.Gossip)
+	assert.Nil(t, node.TPU)
+	assert.Equal(t, pointer.ToString("127.0.0.1:8009"), node.TPUQUIC)
+	assert.Nil(t, node.TPUForwards)
+	assert.Equal(t, pointer.ToString("127.0.0.1:8010"), node.TPUForwardsQUIC)
+	assert.Equal(t, pointer.ToString("127.0.0.1:8005"), node.TPUVote)
+	assert.Equal(t, pointer.ToString("127.0.0.1:8008"), node.ServeRepair)
+	assert.Equal(t, pointer.ToString("127.0.0.1:8899"), node.RPC)
+	assert.Equal(t, pointer.ToString("127.0.0.1:8900"), node.PubSub)
+	assert.Equal(t, pointer.ToString("2.2.1"), node.Version)
+	require.NotNil(t, node.FeatureSet)
+	assert.Equal(t, uint32(3580551090), *node.FeatureSet)
+	assert.Equal(t, uint16(50093), node.ShredVersion)
+	assert.Equal(t, pointer.ToString("Agave"), node.ClientID)
+}
+
+func TestClient_GetClusterNodes_BackwardCompatible(t *testing.T) {
+	// Old response without new fields should still parse
+	responseBody := `[{"pubkey":"hyp3Eo67t6FgeuWg5Qxbeme8NPXJPXXdKT4iJ4DsLf2","gossip":"127.0.0.1:8000","tpu":"127.0.0.1:8003","tpuQuic":"127.0.0.1:8009","rpc":"127.0.0.1:8899","version":"1.17.22","featureSet":3580551090,"shredVersion":50093}]`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	out, err := client.GetClusterNodes(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, out, 1)
+	node := out[0]
+	assert.Nil(t, node.TPUForwards)
+	assert.Nil(t, node.TPUForwardsQUIC)
+	assert.Nil(t, node.TPUVote)
+	assert.Nil(t, node.ServeRepair)
+	assert.Nil(t, node.ClientID)
+}
+
 func TestClient_GetEpochInfo(t *testing.T) {
 	responseBody := `{"absoluteSlot":83994151,"blockHeight":69218302,"epoch":207,"slotIndex":93895,"slotsInEpoch":432000,"transactionCount":27287000257}`
 	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
@@ -931,7 +1030,7 @@ func TestClient_GetEpochInfo(t *testing.T) {
 
 	out, err := client.GetEpochInfo(
 		context.Background(),
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -941,20 +1040,20 @@ func TestClient_GetEpochInfo(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getEpochInfo",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+			"params": []any{
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
 		reqBody,
 	)
 
-	expected := map[string]interface{}{
+	expected := map[string]any{
 		"absoluteSlot":     8.3994151e+07,
 		"blockHeight":      6.9218302e+07,
 		"epoch":            207.0,
@@ -985,120 +1084,10 @@ func TestClient_GetEpochSchedule(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getEpochSchedule",
-		},
-		reqBody,
-	)
-
-	expected := mustJSONToInterface([]byte(responseBody))
-
-	got := mustJSONToInterface(mustAnyToJSON(out))
-
-	assert.Equal(t, expected, got, "both deserialized values must be equal")
-}
-
-func TestClient_GetFeeCalculatorForBlockhash(t *testing.T) {
-	responseBody := `{"context":{"slot":83994405},"value":{"feeCalculator":{"lamportsPerSignature":5000}}}`
-	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
-	defer closer()
-	client := New(server.URL)
-
-	out, err := client.GetFeeCalculatorForBlockhash(
-		context.Background(),
-		solana.Hash{},
-		CommitmentMax,
-	)
-	require.NoError(t, err)
-
-	// the ID is random, so we can't assert it; let's check that it is set, and then remove it
-	reqBody := server.RequestBody(t)
-	assert.NotNil(t, reqBody["id"])
-	reqBody["id"] = any(nil)
-
-	assert.Equal(t,
-		map[string]interface{}{
-			"id":      any(nil),
-			"jsonrpc": "2.0",
-			"method":  "getFeeCalculatorForBlockhash",
-			"params": []interface{}{
-				solana.Hash{}.String(),
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
-				},
-			},
-		},
-		reqBody,
-	)
-
-	expected := mustJSONToInterface([]byte(responseBody))
-
-	got := mustJSONToInterface(mustAnyToJSON(out))
-
-	assert.Equal(t, expected, got, "both deserialized values must be equal")
-}
-
-func TestClient_GetFeeRateGovernor(t *testing.T) {
-	responseBody := `{"context":{"slot":83994521},"value":{"feeRateGovernor":{"burnPercent":50,"maxLamportsPerSignature":100000,"minLamportsPerSignature":5000,"targetLamportsPerSignature":10000,"targetSignaturesPerSlot":20000}}}`
-	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
-	defer closer()
-	client := New(server.URL)
-
-	out, err := client.GetFeeRateGovernor(
-		context.Background(),
-	)
-	require.NoError(t, err)
-
-	// the ID is random, so we can't assert it; let's check that it is set, and then remove it
-	reqBody := server.RequestBody(t)
-	assert.NotNil(t, reqBody["id"])
-	reqBody["id"] = any(nil)
-
-	assert.Equal(t,
-		map[string]interface{}{
-			"id":      any(nil),
-			"jsonrpc": "2.0",
-			"method":  "getFeeRateGovernor",
-		},
-		reqBody,
-	)
-
-	expected := mustJSONToInterface([]byte(responseBody))
-
-	got := mustJSONToInterface(mustAnyToJSON(out))
-
-	assert.Equal(t, expected, got, "both deserialized values must be equal")
-}
-
-func TestClient_GetFees(t *testing.T) {
-	responseBody := `{"context":{"slot":83994536},"value":{"blockhash":"HrPVENs6RtqRAxu14o63ZCkhCQR3vsNur1HU7K3GqKxb","feeCalculator":{"lamportsPerSignature":5000},"lastValidBlockHeight":69218886,"lastValidSlot":83994836}}`
-	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
-	defer closer()
-	client := New(server.URL)
-
-	out, err := client.GetFees(
-		context.Background(),
-		CommitmentMax,
-	)
-	require.NoError(t, err)
-
-	// the ID is random, so we can't assert it; let's check that it is set, and then remove it
-	reqBody := server.RequestBody(t)
-	assert.NotNil(t, reqBody["id"])
-	reqBody["id"] = any(nil)
-
-	assert.Equal(t,
-		map[string]interface{}{
-			"id":      any(nil),
-			"jsonrpc": "2.0",
-			"method":  "getFees",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
-				},
-			},
 		},
 		reqBody,
 	)
@@ -1127,7 +1116,7 @@ func TestClient_GetFirstAvailableBlock(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getFirstAvailableBlock",
@@ -1159,7 +1148,7 @@ func TestClient_GetGenesisHash(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getGenesisHash",
@@ -1191,7 +1180,7 @@ func TestClient_GetHealth(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getHealth",
@@ -1223,7 +1212,7 @@ func TestClient_GetIdentity(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getIdentity",
@@ -1246,7 +1235,7 @@ func TestClient_GetInflationGovernor(t *testing.T) {
 
 	out, err := client.GetInflationGovernor(
 		context.Background(),
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -1256,13 +1245,13 @@ func TestClient_GetInflationGovernor(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getInflationGovernor",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+			"params": []any{
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -1293,7 +1282,7 @@ func TestClient_GetInflationRate(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getInflationRate",
@@ -1306,6 +1295,21 @@ func TestClient_GetInflationRate(t *testing.T) {
 	got := mustJSONToInterface(mustAnyToJSON(out))
 
 	assert.Equal(t, expected, got, "both deserialized values must be equal")
+}
+
+func TestClient_GetInflationRate_EpochAsUint64(t *testing.T) {
+	responseBody := `{"epoch":207,"foundation":0,"total":0.1403151524615605,"validator":0.1403151524615605}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	out, err := client.GetInflationRate(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, uint64(207), out.Epoch)
+	assert.Equal(t, 0.1403151524615605, out.Total)
+	assert.Equal(t, 0.1403151524615605, out.Validator)
+	assert.Equal(t, float64(0), out.Foundation)
 }
 
 func TestClient_GetInflationReward(t *testing.T) {
@@ -1322,7 +1326,7 @@ func TestClient_GetInflationReward(t *testing.T) {
 	}
 	epoch := uint64(56)
 	opts := GetInflationRewardOpts{
-		Commitment: CommitmentMax,
+		Commitment: CommitmentFinalized,
 		Epoch:      &epoch,
 	}
 
@@ -1339,16 +1343,16 @@ func TestClient_GetInflationReward(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getInflationReward",
-			"params": []interface{}{
-				[]interface{}{
+			"params": []any{
+				[]any{
 					pubkeyString,
 				},
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 					"epoch":      float64(epoch),
 				},
 			},
@@ -1363,6 +1367,45 @@ func TestClient_GetInflationReward(t *testing.T) {
 	assert.Equal(t, expected, got, "both deserialized values must be equal")
 }
 
+func TestClient_GetInflationReward_WithCommissionBps(t *testing.T) {
+	responseBody := `[{"epoch":100,"effectiveSlot":43200000,"amount":2500000,"postBalance":1002500000,"commission":5,"commissionBps":500}]`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	pubKey := solana.MustPublicKeyFromBase58("7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932")
+	out, err := client.GetInflationReward(context.Background(), []solana.PublicKey{pubKey}, nil)
+	require.NoError(t, err)
+
+	require.Len(t, out, 1)
+	require.NotNil(t, out[0])
+	assert.Equal(t, uint64(100), out[0].Epoch)
+	assert.Equal(t, uint64(43200000), out[0].EffectiveSlot)
+	assert.Equal(t, uint64(2500000), out[0].Amount)
+	assert.Equal(t, uint64(1002500000), out[0].PostBalance)
+	require.NotNil(t, out[0].Commission)
+	assert.Equal(t, uint8(5), *out[0].Commission)
+	require.NotNil(t, out[0].CommissionBps)
+	assert.Equal(t, uint16(500), *out[0].CommissionBps)
+}
+
+func TestClient_GetInflationReward_WithoutCommissionBps(t *testing.T) {
+	responseBody := `[{"epoch":100,"effectiveSlot":43200000,"amount":2500000,"postBalance":1002500000,"commission":5}]`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	pubKey := solana.MustPublicKeyFromBase58("7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932")
+	out, err := client.GetInflationReward(context.Background(), []solana.PublicKey{pubKey}, nil)
+	require.NoError(t, err)
+
+	require.Len(t, out, 1)
+	require.NotNil(t, out[0])
+	require.NotNil(t, out[0].Commission)
+	assert.Equal(t, uint8(5), *out[0].Commission)
+	assert.Nil(t, out[0].CommissionBps)
+}
+
 func TestClient_GetLargestAccounts(t *testing.T) {
 	responseBody := `{"context":{"slot":83995022},"value":[{"address":"4Rf9mGD7FeYknun5JczX5nGLTfQuS1GRjNVfkEMKE92b","lamports":398178060209179300},{"address":"KchK7WTjPzq9QL5aCwnV1dLsT8rFjruS1Zfzamxus9G","lamports":215100454508495000},{"address":"8oRw7qpj6XgLGXYCDuNoTMCqoJnDd6A8LTpNyqApSfkA","lamports":99999674507283220},{"address":"9oKrJ9iiEnCC7bewcRFbcdo4LKL2PhUEqcu8gH2eDbVM","lamports":97721650553633650},{"address":"3ANJb42D3pkVtntgT6VtW2cD3icGVyoHi2NGwtXYHQAs","lamports":91160815129021260},{"address":"K7DbiDcRngs4KY3KxSUcMFNEzXW7iQgi3zFzerXYYDZ","lamports":80000000000000000},{"address":"mvines9iiHiQTysrwkJjGf2gb9Ex9jXJX8ns3qwf2kN","lamports":53925298123552904},{"address":"71bhKKL89U3dNHzuZVZ7KarqV6XtHEgjXjvJTsguD11B","lamports":20949230980018784},{"address":"57DPUrAncC4BUY7KBqRMCQUt4eQeMaJWpmLQwsL35ojZ","lamports":18210921605995270},{"address":"hQBS6cu8RHkXcCzE6N8mQxhgrtbNy4kivoRjTMzF2cA","lamports":18191952118880490},{"address":"5vxoRv2P12q4K4cWPCJkvPjg6jYnuCYxzF3juJZJiwba","lamports":14225826149332328},{"address":"2tZoLFgcbeW8Howq8QMRnExvuwHFUeEnx9ZhHq2qX77E","lamports":10099331225079048},{"address":"5NH47Zk9NAzfbtqNpUtn8CQgNZeZE88aa2NRpfe7DyTD","lamports":10000060317056686},{"address":"4xxV5Svt3LPsDv81seuqKB4QXxwhdQiFXzbj9GNYXkEr","lamports":10000000000000000},{"address":"GoCxdowvFindZVAXP3QsKRP3rR2LZBNXWwp3FB1yZznF","lamports":9796480999955000},{"address":"7arfejY2YxX9QrmzHrhu3rG3HofjMqKtfBzQLf8s3Wop","lamports":5465066164230830},{"address":"5TkrtJfHoX85sti8xSVvfggVV9SDvhjYjiXe9PqMJVN9","lamports":5384143441736968},{"address":"123vij84ecQEKUvQ7gYMKxKwKF6PbYSzCzzURYA4xULY","lamports":4350560741967702},{"address":"7vYe2KRUL2sbqSqbCn4UCvn2taaTJWvo3HBsPjZcEogG","lamports":3983999997415000},{"address":"7aeNmoVKnbxUSZGukYz2Gyr3UazXpaxATNszKu8XMW1k","lamports":3324774979081580}]}`
 	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
@@ -1372,7 +1415,7 @@ func TestClient_GetLargestAccounts(t *testing.T) {
 	filter := LargestAccountsFilterCirculating
 	out, err := client.GetLargestAccounts(
 		context.Background(),
-		CommitmentMax,
+		CommitmentFinalized,
 		filter,
 	)
 	require.NoError(t, err)
@@ -1383,13 +1426,13 @@ func TestClient_GetLargestAccounts(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getLargestAccounts",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+			"params": []any{
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 					"filter":     string(filter),
 				},
 			},
@@ -1490,6 +1533,48 @@ func TestClient_GetLargestAccounts(t *testing.T) {
 	assert.Equal(t, expected, out)
 }
 
+func TestClient_GetLargestAccountsWithOpts_SortResults(t *testing.T) {
+	responseBody := `{"context":{"slot":83995022},"value":[{"address":"4Rf9mGD7FeYknun5JczX5nGLTfQuS1GRjNVfkEMKE92b","lamports":398178060209179300}]}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	sortResults := true
+	out, err := client.GetLargestAccountsWithOpts(
+		context.Background(),
+		&GetLargestAccountsOpts{
+			Commitment:  CommitmentFinalized,
+			Filter:      LargestAccountsFilterCirculating,
+			SortResults: &sortResults,
+		},
+	)
+	require.NoError(t, err)
+
+	reqBody := server.RequestBody(t)
+	reqBody["id"] = any(nil)
+
+	assert.Equal(t,
+		map[string]any{
+			"id":      any(nil),
+			"jsonrpc": "2.0",
+			"method":  "getLargestAccounts",
+			"params": []any{
+				map[string]any{
+					"commitment":  string(CommitmentFinalized),
+					"filter":      string(LargestAccountsFilterCirculating),
+					"sortResults": true,
+				},
+			},
+		},
+		reqBody,
+	)
+
+	require.NotNil(t, out)
+	require.Len(t, out.Value, 1)
+	assert.Equal(t, solana.MustPublicKeyFromBase58("4Rf9mGD7FeYknun5JczX5nGLTfQuS1GRjNVfkEMKE92b"), out.Value[0].Address)
+	assert.Equal(t, uint64(398178060209179300), out.Value[0].Lamports)
+}
+
 func TestClient_GetLeaderSchedule(t *testing.T) {
 	responseBody := `{"DsaF77cCADh79q7HPfz5TrWPfEmD5Gw1c15zSm4eaFyt":[128,129,130,131,9480,9481,9482,9483,9752,9753,9754,9755,16272,16273,16274,16275,19860,19861,19862,19863,19932,19933,19934,19935,26616,26617,26618,26619,28856,28857,28858,28859,36556,36557,36558,36559,37500,37501,37502,37503,47220,47221,47222,47223,58436,58437,58438,58439,79524,79525,79526,79527,90452,90453,90454,90455,90952,90953,90954,90955,91900,91901,91902,91903,102772,102773,102774,102775,103568,103569,103570,103571,111164,111165,111166,111167,117068,117069,117070,117071,123116,123117,123118,123119,136224,136225,136226,136227,145072,145073,145074,145075,146124,146125,146126,146127,148824,148825,148826,148827,158400,158401,158402,158403,158792,158793,158794,158795,161988,161989,161990,161991,163548,163549,163550,163551,167528,167529,167530,167531,174584,174585,174586,174587,176388,176389,176390,176391,184700,184701,184702,184703,186132,186133,186134,186135,199876,199877,199878,199879,201568,201569,201570,201571,205376,205377,205378,205379,207452,207453,207454,207455,223384,223385,223386,223387,225772,225773,225774,225775,255776,255777,255778,255779,256640,256641,256642,256643,262364,262365,262366,262367,269128,269129,269130,269131,272920,272921,272922,272923,274180,274181,274182,274183,293660,293661,293662,293663,303004,303005,303006,303007,317092,317093,317094,317095,323184,323185,323186,323187,323252,323253,323254,323255,328216,328217,328218,328219,333508,333509,333510,333511,336908,336909,336910,336911,337036,337037,337038,337039,341392,341393,341394,341395,341848,341849,341850,341851,351972,351973,351974,351975,363532,363533,363534,363535,397416,397417,397418,397419,398756,398757,398758,398759,414788,414789,414790,414791,428144,428145,428146,428147,428432,428433,428434,428435,430140,430141,430142,430143]}`
 	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
@@ -1505,7 +1590,7 @@ func TestClient_GetLeaderSchedule(t *testing.T) {
 		context.Background(),
 		&GetLeaderScheduleOpts{
 			Epoch:      &epoch,
-			Commitment: CommitmentMax,
+			Commitment: CommitmentFinalized,
 			Identity:   &identity,
 		},
 	)
@@ -1517,14 +1602,14 @@ func TestClient_GetLeaderSchedule(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getLeaderSchedule",
-			"params": []interface{}{
+			"params": []any{
 				float64(epoch),
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 					"identity":   string(identity.String()),
 				},
 			},
@@ -1556,7 +1641,7 @@ func TestClient_GetMaxRetransmitSlot(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getMaxRetransmitSlot",
@@ -1588,7 +1673,7 @@ func TestClient_GetMaxShredInsertSlot(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getMaxShredInsertSlot",
@@ -1613,7 +1698,7 @@ func TestClient_GetMinimumBalanceForRentExemption(t *testing.T) {
 	out, err := client.GetMinimumBalanceForRentExemption(
 		context.Background(),
 		dataSize,
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -1623,14 +1708,14 @@ func TestClient_GetMinimumBalanceForRentExemption(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getMinimumBalanceForRentExemption",
-			"params": []interface{}{
+			"params": []any{
 				float64(dataSize),
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -1664,12 +1749,12 @@ func TestClient_GetMultipleAccounts(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getMultipleAccounts",
-			"params": []interface{}{
-				[]interface{}{pubkeyString},
+			"params": []any{
+				[]any{pubkeyString},
 			},
 		},
 		reqBody,
@@ -1684,7 +1769,7 @@ func TestClient_GetMultipleAccounts(t *testing.T) {
 		Value: []*Account{
 			{
 				Lamports: 19039980000,
-				Owner:    solana.MustPublicKeyFromBase58("11111111111111111111111111111111"),
+				Owner:    solana.SystemProgramID,
 				Data: &DataBytesOrJSON{
 					asDecodedBinary: solana.Data{
 						Content:  []byte{},
@@ -1713,7 +1798,7 @@ func TestClient_GetProgramAccounts(t *testing.T) {
 	offset := uint64(13)
 	length := uint64(30)
 	opts := GetProgramAccountsOpts{
-		Commitment: CommitmentMax,
+		Commitment: CommitmentFinalized,
 		Encoding:   solana.EncodingBase58,
 		DataSlice: &DataSlice{
 			Offset: &offset,
@@ -1742,22 +1827,22 @@ func TestClient_GetProgramAccounts(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getProgramAccounts",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
+				map[string]any{
 					"encoding":   string(solana.EncodingBase58),
-					"commitment": string(CommitmentMax),
-					"dataSlice": map[string]interface{}{
+					"commitment": string(CommitmentFinalized),
+					"dataSlice": map[string]any{
 						"offset": float64(offset),
 						"length": float64(length),
 					},
-					"filters": []interface{}{
-						map[string]interface{}{
-							"memcmp": map[string]interface{}{
+					"filters": []any{
+						map[string]any{
+							"memcmp": map[string]any{
 								"bytes":  "7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932",
 								"offset": float64(offset),
 							},
@@ -1791,6 +1876,97 @@ func TestClient_GetProgramAccounts(t *testing.T) {
 	assert.Equal(t, expected, out)
 }
 
+func TestClient_GetProgramAccountsWithContext(t *testing.T) {
+	responseBody := `{"context":{"slot":83986105,"apiVersion":"2.2.1"},"value":[{"account":{"data":["dGVzdA==","base64"],"executable":true,"lamports":2039280,"owner":"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA","rentEpoch":206},"pubkey":"7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932"}]}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	pubkeyString := "7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932"
+	pubKey := solana.MustPublicKeyFromBase58(pubkeyString)
+
+	out, err := client.GetProgramAccountsWithContext(
+		context.Background(),
+		pubKey,
+		&GetProgramAccountsOpts{
+			Commitment: CommitmentFinalized,
+		},
+	)
+	require.NoError(t, err)
+
+	reqBody := server.RequestBody(t)
+	assert.NotNil(t, reqBody["id"])
+	reqBody["id"] = any(nil)
+
+	assert.Equal(t,
+		map[string]any{
+			"id":      any(nil),
+			"jsonrpc": "2.0",
+			"method":  "getProgramAccounts",
+			"params": []any{
+				pubkeyString,
+				map[string]any{
+					"encoding":    "base64",
+					"commitment":  string(CommitmentFinalized),
+					"withContext": true,
+				},
+			},
+		},
+		reqBody,
+	)
+
+	// Verify context is returned (not silently dropped)
+	assert.Equal(t, uint64(83986105), out.Context.Slot)
+	require.NotNil(t, out.Context.ApiVersion)
+	assert.Equal(t, "2.2.1", *out.Context.ApiVersion)
+
+	// Verify accounts
+	require.Len(t, out.Value, 1)
+	assert.Equal(t, solana.MustPublicKeyFromBase58("7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932"), out.Value[0].Pubkey)
+	assert.Equal(t, uint64(2039280), out.Value[0].Account.Lamports)
+}
+
+func TestClient_GetProgramAccountsWithOpts_SortResults(t *testing.T) {
+	responseBody := `[{"account":{"data":["dGVzdA==","base64"],"executable":true,"lamports":2039280,"owner":"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA","rentEpoch":206},"pubkey":"7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932"}]`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	pubkeyString := "7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932"
+	pubKey := solana.MustPublicKeyFromBase58(pubkeyString)
+
+	sortResults := true
+	out, err := client.GetProgramAccountsWithOpts(
+		context.Background(),
+		pubKey,
+		&GetProgramAccountsOpts{
+			SortResults: &sortResults,
+		},
+	)
+	require.NoError(t, err)
+
+	reqBody := server.RequestBody(t)
+	reqBody["id"] = any(nil)
+
+	assert.Equal(t,
+		map[string]any{
+			"id":      any(nil),
+			"jsonrpc": "2.0",
+			"method":  "getProgramAccounts",
+			"params": []any{
+				pubkeyString,
+				map[string]any{
+					"encoding":    "base64",
+					"sortResults": true,
+				},
+			},
+		},
+		reqBody,
+	)
+
+	require.Len(t, out, 1)
+}
+
 func TestClient_GetRecentPerformanceSamples(t *testing.T) {
 	responseBody := `[{"numSlots":84,"numTransactions":90402,"samplePeriodSecs":60,"slot":83998844}]`
 	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
@@ -1810,11 +1986,11 @@ func TestClient_GetRecentPerformanceSamples(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getRecentPerformanceSamples",
-			"params": []interface{}{
+			"params": []any{
 				float64(limit),
 			},
 		},
@@ -1828,36 +2004,40 @@ func TestClient_GetRecentPerformanceSamples(t *testing.T) {
 	assert.Equal(t, expected, got, "both deserialized values must be equal")
 }
 
-func TestClient_GetSnapshotSlot(t *testing.T) {
-	responseBody := `83998606`
+func TestClient_GetRecentPerformanceSamples_WithNonVoteTx(t *testing.T) {
+	// Based on Agave test fixture from response.rs
+	responseBody := `[{"slot":1286,"numTransactions":1732,"numNonVoteTransactions":757,"numSlots":393,"samplePeriodSecs":197}]`
 	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
 	defer closer()
 	client := New(server.URL)
 
-	out, err := client.GetSnapshotSlot(
-		context.Background(),
-	)
+	limit := uint(1)
+	out, err := client.GetRecentPerformanceSamples(context.Background(), &limit)
 	require.NoError(t, err)
 
-	// the ID is random, so we can't assert it; let's check that it is set, and then remove it
-	reqBody := server.RequestBody(t)
-	assert.NotNil(t, reqBody["id"])
-	reqBody["id"] = any(nil)
+	require.Len(t, out, 1)
+	assert.Equal(t, uint64(1286), out[0].Slot)
+	assert.Equal(t, uint64(1732), out[0].NumTransactions)
+	require.NotNil(t, out[0].NumNonVoteTransactions)
+	assert.Equal(t, uint64(757), *out[0].NumNonVoteTransactions)
+	assert.Equal(t, uint64(393), out[0].NumSlots)
+	assert.Equal(t, uint16(197), out[0].SamplePeriodSecs)
+}
 
-	assert.Equal(t,
-		map[string]interface{}{
-			"id":      any(nil),
-			"jsonrpc": "2.0",
-			"method":  "getSnapshotSlot",
-		},
-		reqBody,
-	)
+func TestClient_GetRecentPerformanceSamples_WithoutNonVoteTx(t *testing.T) {
+	// Backward compatibility: old response without numNonVoteTransactions (from Agave response.rs test)
+	responseBody := `[{"slot":424,"numTransactions":2597,"numSlots":2783,"samplePeriodSecs":398}]`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
 
-	expected := mustJSONToInterface([]byte(responseBody))
+	limit := uint(1)
+	out, err := client.GetRecentPerformanceSamples(context.Background(), &limit)
+	require.NoError(t, err)
 
-	got := mustJSONToInterface(mustAnyToJSON(out))
-
-	assert.Equal(t, expected, got, "both deserialized values must be equal")
+	require.Len(t, out, 1)
+	assert.Nil(t, out[0].NumNonVoteTransactions)
+	assert.Equal(t, uint64(2597), out[0].NumTransactions)
 }
 
 func TestClient_GetSignaturesForAddress(t *testing.T) {
@@ -1878,7 +2058,7 @@ func TestClient_GetSignaturesForAddress(t *testing.T) {
 		Limit:          &limit,
 		Before:         before,
 		Until:          until,
-		Commitment:     CommitmentMax,
+		Commitment:     CommitmentFinalized,
 		MinContextSlot: &minContextSlot,
 	}
 	out, err := client.GetSignaturesForAddressWithOpts(
@@ -1894,14 +2074,14 @@ func TestClient_GetSignaturesForAddress(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getSignaturesForAddress",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
-					"commitment":     string(CommitmentMax),
+				map[string]any{
+					"commitment":     string(CommitmentFinalized),
 					"before":         before.String(),
 					"until":          until.String(),
 					"limit":          float64(limit),
@@ -1917,6 +2097,41 @@ func TestClient_GetSignaturesForAddress(t *testing.T) {
 	got := mustJSONToInterface(mustAnyToJSON(out))
 
 	assert.Equal(t, expected, got, "both deserialized values must be equal")
+}
+
+func TestClient_GetSignaturesForAddress_WithTransactionIndex(t *testing.T) {
+	responseBody := `[{"blockTime":1234567890,"confirmationStatus":"finalized","err":null,"memo":"test memo","signature":"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW","slot":123,"transactionIndex":42}]`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	pubKey := solana.MustPublicKeyFromBase58("7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932")
+	out, err := client.GetSignaturesForAddress(context.Background(), pubKey)
+	require.NoError(t, err)
+
+	require.Len(t, out, 1)
+	sig := out[0]
+	assert.Equal(t, uint64(123), sig.Slot)
+	assert.Nil(t, sig.Err)
+	require.NotNil(t, sig.Memo)
+	assert.Equal(t, "test memo", *sig.Memo)
+	require.NotNil(t, sig.TransactionIndex)
+	assert.Equal(t, uint32(42), *sig.TransactionIndex)
+	assert.Equal(t, ConfirmationStatusType("finalized"), sig.ConfirmationStatus)
+}
+
+func TestClient_GetSignaturesForAddress_WithoutTransactionIndex(t *testing.T) {
+	responseBody := `[{"blockTime":1234567890,"confirmationStatus":"finalized","err":null,"memo":null,"signature":"5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW","slot":123}]`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	pubKey := solana.MustPublicKeyFromBase58("7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932")
+	out, err := client.GetSignaturesForAddress(context.Background(), pubKey)
+	require.NoError(t, err)
+
+	require.Len(t, out, 1)
+	assert.Nil(t, out[0].TransactionIndex)
 }
 
 func TestClient_GetSignatureStatuses(t *testing.T) {
@@ -1941,16 +2156,16 @@ func TestClient_GetSignatureStatuses(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getSignatureStatuses",
-			"params": []interface{}{
-				[]interface{}{
+			"params": []any{
+				[]any{
 					sig1.String(),
 					sig2.String(),
 				},
-				map[string]interface{}{
+				map[string]any{
 					"searchTransactionHistory": true,
 				},
 			},
@@ -1973,7 +2188,7 @@ func TestClient_GetSlot(t *testing.T) {
 
 	out, err := client.GetSlot(
 		context.Background(),
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -1983,13 +2198,13 @@ func TestClient_GetSlot(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getSlot",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+			"params": []any{
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -2011,7 +2226,7 @@ func TestClient_GetSlotLeader(t *testing.T) {
 
 	out, err := client.GetSlotLeader(
 		context.Background(),
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -2021,13 +2236,13 @@ func TestClient_GetSlotLeader(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getSlotLeader",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+			"params": []any{
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -2062,11 +2277,11 @@ func TestClient_GetSlotLeaders(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getSlotLeaders",
-			"params": []interface{}{
+			"params": []any{
 				float64(start),
 				float64(limit),
 			},
@@ -2096,12 +2311,12 @@ func TestClient_GetSupply(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getSupply",
-			"params": []interface{}{
-				map[string]interface{}{
+			"params": []any{
+				map[string]any{
 					"commitment":                        string(CommitmentFinalized),
 					"excludeNonCirculatingAccountsList": false,
 				},
@@ -2117,7 +2332,7 @@ func TestClient_GetSupply(t *testing.T) {
 	assert.Equal(t, expected, got, "both deserialized values must be equal")
 }
 
-func TestClient_GetSupply_CommitmentMax(t *testing.T) {
+func TestClient_GetSupply_WithOpts(t *testing.T) {
 	responseBody := `{"context":{"slot":83999524},"value":{"circulating":1370901328666198300,"nonCirculating":154690270000000,"nonCirculatingAccounts":["Br3aeVGapRb2xTq17RU2pYZCoJpWA7bq6TKBCcYtMSmt","AzHQ8Bia1grVVbcGyci7wzueSWkgvu7YZVZ4B9rkL5P6","GpYnVDgB7dzvwSgsjQFeHznjG6Kt1DLBFYrKxjGU1LuD","6ii8XC6KrfRcCR63cvJVhE73iCB1G44ZEaLW4WFYzy61","CoqCEzUA7KpCUxkV8ihGn9oru6imf6oVnjYKpa6jY5TC","CqqiPBWPqr3qN4gjiBQjWNT52eRFys5xdGdbQ69ywHfX","CND6ZjRTzaCFVdX7pSSWgjTfHZuhxqFDoUBqWBJguNoA","2qXZP8ZUCpvEd3VPow2zobf9S1db1vTBG3oqLWUANVNm","3s7wyR22skqVwwYRLiboJ9BYaEMsKkKqgetGZw7xtkgc","5TXdcD9Sq8UE2h6wSQj6HC7TYHZNqTdXPvmVZWFMsDzp","DQQGPtj7pphPHCLzzBuEyDDQByUcKGrsJdsH7SP3hAug","EAJJD6nDqtXcZ4DnQb19F9XEz8y8bRDHxbWbahatZNbL","DrKzW5koKSZp4mg4BdHLwr72MMXscd2kTiWgckCvvPXz","BhvLngiqqKeZ8rpxch2uGjeCiC88zzewoWPRuoxpp1aS","CVgyXrbEd1ctEuvq11QdpnCQVnPit8NLdhyqXQHLprM2","4bDVNTq2xJKK4WjKQ214DaYBh1NE5s2H1PvcoRuPdnSf","3ZrsTmNM6AkMcqFfv3ryfhQ2jMfqP64RQbqVyAaxqhrQ","E6HM7ny8AAY28Q8Za9RyrX7x1MyEdDkaXYFGUwoy4kM2","AVYpwVou2BhdLivAwLxKPALZQsY7aZNkNmGbP2fZw7RU","H3Ni7vG1CsmJZdTvxF7RkAf9UM5qk4RsohJsmPvtZNnu","Ga7HnuewhNo3htQxy6mgs2oM6WxuZpA9hJCnBhP75J8o","AG3m2bAibcY8raMt4oXEGqRHwX4FWKPPJVjZxn1LySDX","CsUqV42gVQLJwQsKyjWHqGkfHarxn9hcY4YeSjgaaeTd","5XdtyEDREHJXXW1CTtCsVjJRjBapAwK78ZquzvnNVRrV","3jnknRabs7G2V9dKhxd2KP85pNWXKXiedYnYxtySnQMs","8W58E8JVJjH1jCy5CeHJQgvwFXTyAVyesuXRZGbcSUGG","3bTGcGB9F98XxnrBNftmmm48JGfPgi5sYxDEKiCjQYk3","JCwT5Ygmq3VeBEbDjL8s8E82Ra2rP9bq45QfZE7Xyaq7","Es13uD2p64UVPFpEWfDtd6SERdoNR2XVgqBQBZcZSLqW","C7C8odR8oashR5Feyrq2tJKaXL18id1dSj2zbkDGL2C2","GdnSyH3YtwcxFvQrVVJMm1JhTS4QVX7MFsX56uJLUfiZ","CuatS6njAcfkFHnvai7zXCs7syA9bykXWsDCJEWfhjHG","6nN69B4uZuESZYxr9nrLDjmKRtjDZQXrehwkfQTKw62U","Hm9JW7of5i9dnrboS8pCUCSeoQUPh7JsP1rkbJnW7An4","GvpCiTgq9dmEeojCDBivoLoZqc4AkbUDACpqPMwYLWKh","GK2zqSsXLA2rwVZk347RYhh6jJpRsCA69FjLW93ZGi3B","F9MWFw8cnYVwsRq8Am1PGfFL3cQUZV37mbGoxZftzLjN","63DtkW7zuARcd185EmHAkfF44bDcC2SiTSEj2spLP3iA","GEWSkfWgHkpiLbeKaAnwvqnECGdRNf49at5nFccVey7c","DbF5Cmc4A8gSVaLCxurLoRZE93K164xF4Mjcqqe1xsHk","HKJgYGTTYYR2ZkfJKHbn58w676fKueQXmvbtpyvrSM3N","3euMq5VfpURASdXrHComyoovnfQDPgBKV8Wa4omQ3Qpd","6zw7em7uQdmMpuS9fGz8Nq9TLHa5YQhEKKwPjo5PwDK4","3o6xgkJ9sTmDeQWyfj3sxwon18fXJB9PV5LDc8sfgR4a","9LJrasfs648fi2uzmFqNVSrcCtz6xQaYC5E1BeyPHTJM","8DE8fqPfv1fp9DHyGyDFFaMjpopMgDeXspzoi9jpBJjC","FgnjRCqdtAhdLxNmhMN2zGdUjm364QQhPR2Z9C5d9wut","GHzNBbsKr43UeJ2wQpkGdmNqowZsv1xnLpq1bPNqAiHn","5q54XjQ7vDx4y6KphPeE97LUNiYGtP55spjvXAWPGBuf","4sxwau4mdqZ8zEJsfryXq4QFYnMJSCp3HWuZQod8WU5k","Hz9nydgN1k15wnwffKX7CSmZp4VFTnTwLXAEdomFGNXy","CWeRmXme7LmbaUWTZWFLt6FMnpzLCHaQLuR2TdgFn4Lq","8CUUMKYNGxdgYio5CLHRHyzMEhhVRMcqefgE6dLqnVRK","DE1bawNcRJB9rVm3buyMVfr8mBEoyyu73NBovf2oXJsJ","xQadXQiUTCCFhfHjvQx1hyJK6KVWr1w2fD6DT3cdwj7","7Np41oeYqPefeNQEHSv1UDhYrehxin3NStELsSKCT4K2","BuCEvc9ze8UoAQwwsQLy8d447C8sA4zeVtVpc6m5wQeS","CUageMFi49kzoDqtdU8NvQ4Bq3sbtJygjKDAXJ45nmAi","14FUT96s9swbmH7ZjpDvfEDywnAYy9zaNhv4xvezySGu","H1rt8KvXkNhQExTRfkY8r9wjZbZ8yCih6J4wQ5Fz9HGP","9huDUZfxoJ7wGMTffUE7vh1xePqef7gyrLJu9NApncqA","BUnRE27mYXN9p8H1Ay24GXhJC88q2CuwLoNU2v2CrW4W","H3EP5q7LL6XfqPmxLp8yBvDwgUHfvhvQxKxrq644K8d5","FwfaykN7ACnsEUDHANzGHqTGQZMcGnUSsahAHUqbdPrz","Fg12tB1tz8w6zJSQ4ZAGotWoCztdMJF9hqK8R11pakog","8UVjvYyoqP6sqcctTso3xpCdCfgTMiv3VRh7vraC2eJk","GNiz4Mq886bTNDT3pijGsu2gbw6it7sqrwncro45USeB","7W8FhaRLM2Hr9sZMXFwWbe4QqphkCnVvPDvjv7YbRuDj","CQDYc4ET2mbFhVpgj41gXahL6Exn5ZoPcGAzSHuYxwmE","2WWb1gRzuXDd5viZLQF7pNRR6Y7UiyeaPpaL35X6j3ve","3epceuFZLxwjCKhMdiigxconx8GDGH9HVDQZ8eqazaHA","8rT45mqpuDBR1vcnDc9kwP9DrZAXDR4ZeuKWw3u1gTGa","GhsotwFMH6XUrRLJCxcx62h7748N2Uq8mf87hUGkmPhg","Fgyh8EeYGZtbW8sS33YmNQnzx54WXPrJ5KWNPkCfWPot","3itU5ME8L6FDqtMiRoUiT1F7PwbkTtHBbW51YWD5jtjm","7cvkjYAkUYs4W8XcXsca7cBrEGFeSUjeZmKoNBvEwyri","FiWYY85b58zEEcPtxe3PuqzWPjqBJXqdwgZeqSBmT9Cn","8vqrX3H2BYLaXVintse3gorPEM4TgTwTFZNN1Fm9TdYs","FbGeZS8LiPCZiFpFwdUUeF2yxXtSsdfJoHTsVMvM8STh","3ahQgaKYVhsKq5ybdxzHDD6nAgHCZNkxrNDfGo21ykUT","EziVYi3Sv5kJWxmU77PnbrT8jmkVuqwdiFLLzZpLVEn7","Ep5Y58PaSyALPrdFxDVAdfKtVdP55vApvsWjb3jSmXsG","9hknftBZAQL4f48tWfk3bUEV5YSLcYYtDRqNmpNnhCWG","6yKHERk8rsbmJxvMpPuwPs1ct3hRiP7xaJF2tvnGU6nK","8pNBEppa1VcFAsx4Hzq9CpdXUXZjUXbvQwLX2K7QsCwb","5D5NxsNVTgXHyVziwV7mDFwVDS6voaBsyyGxUbhQrhNW","FV8c2PQfsWqXUWBaiF7TSMMim5bZ5G53PCfh7eKbaz54","nGME7HgBT6tAJN1f6YuCCngpqT5cvSTndZUVLjQ4jwA","BUjkdqUuH5Lz9XzcMcR4DdEMnFG6r8QzUMBm16Rfau96","Mc5XB47H3DKJHym5RLa9mPzWv5snERsF3KNv5AauXK8","FR84wZQy3Y3j2gWz6pgETUiUoJtreMEuWfbg6573UCj9","7Y8smnoUrYKGGuDq2uaFKVxJYhojgg7DVixHyAtGTYEV","4NEb5MLmDDFCe4S9c3DacHLTHxfNwZrbk7Kojy41541h","3zFnorNhzsF3k446HB9bwb64CByzocBWaJ5JBqgN7Cez","BRz3NM1jouNETV6SBWW7Eg1EBLM2bB1vrRyMeur3cbGZ","GpxpMVhrBBBEYbEJxdR62w3daWz444V7m6dxYDZKH77D","HCV5dGFJXRrJ3jhDYA4DCeb9TEDTwGGYXtT3wHksu2Zr","8otuo6Jc7n9ceg5ESbMnsqzsk75yPwcNK7YiDz7e5Wb5","CzAHrrrHKx9Lxf6wdCMrsZkLvk74c7J2vGv8VYPUmY6v","HbZ5FfmKWNHC7uwk6TF1hVi6TCs7dtYfdjEcuPGgzFAg","Eyr9P5XsjK2NUKNCnfu39eqpGoiLFgVAv1LSQgMZCwiQ","7xJ9CLtEAcEShw9kW2gSoZkRWL566Dg12cvgzANJwbTr","1ddE4tL2WhjUE3iWBniF9HA7Yni8GWXNu5mFW7XabUC","5PLJZLJiRR9vf7d1JCCg7UuWjtyN9nkab9uok6TqSyuP","BivdSm1m8LtgfJRLS6QPdJ3oSys4DcNmstLiviB3ZVq1","6LHVCmk59bnpeNBobFkPR2GLneqVbQ4WyFuRuSAiJgMR","5khMKAcvmsFaAhoKkdg3u5abvKsmjUQNmhTNP624WB1F","5smrYwb1Hr2T8XMnvsqccTgXxuqQs14iuE8RbHFYf2Cf","5qC7uu1gHgJ4f2c6PixtYRxkzdZWR24DWcVGQR2BpBhj","8ndGYFjav6NDXvzYcxs449Aub3AxYv4vYpk89zRDwgj7","6o5v1HC7WhBnLfRHp8mQTtCP2khdXXjhuyGyYEoy2Suy","CHmdL15akDcJgBkY6BP3hzs98Dqr6wbdDC5p8odvtSbq","EMAY24PrS6rWfvpqffFCsTsFJypeeYYmtUc26wdh3Wup","6HUwuZs3PBup79UygZwyowozDNKydP33T1dt7ViFbQQr","AsrYX4FeLXnZcrjcZmrASY2Eq1jvEeQfwxtNTxS5zojA","GumSE5HsMV5HCwBTv2D2D81yy9x17aDkvobkqAfTRgmo","AzVV9ZZDxTgW4wWfJmsG6ytaHpQGSe1yz76Nyy84VbQF","CakcnaRDHka2gXyfbEd2d3xsvkJkqsLw2akB3zsN1D2S","DUS1KxwUhUyDKB4A81E8vdnTe3hSahd92Abtn9CXsEcj"],"total":1371056018936198100}}`
 	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
 	defer closer()
@@ -2126,7 +2341,7 @@ func TestClient_GetSupply_CommitmentMax(t *testing.T) {
 	out, err := client.GetSupplyWithOpts(
 		context.Background(),
 		&GetSupplyOpts{
-			Commitment:                        CommitmentMax,
+			Commitment:                        CommitmentFinalized,
 			ExcludeNonCirculatingAccountsList: false,
 		},
 	)
@@ -2138,13 +2353,13 @@ func TestClient_GetSupply_CommitmentMax(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getSupply",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment":                        string(CommitmentMax),
+			"params": []any{
+				map[string]any{
+					"commitment":                        string(CommitmentFinalized),
 					"excludeNonCirculatingAccountsList": false,
 				},
 			},
@@ -2181,12 +2396,12 @@ func TestClient_GetSupply_ExcludeNonCirculatingAccounts(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getSupply",
-			"params": []interface{}{
-				map[string]interface{}{
+			"params": []any{
+				map[string]any{
 					"commitment":                        string(CommitmentConfirmed),
 					"excludeNonCirculatingAccountsList": true,
 				},
@@ -2214,7 +2429,7 @@ func TestClient_GetTokenLargestAccounts(t *testing.T) {
 	out, err := client.GetTokenLargestAccounts(
 		context.Background(),
 		pubKey,
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -2224,14 +2439,14 @@ func TestClient_GetTokenLargestAccounts(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getTokenLargestAccounts",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -2257,7 +2472,7 @@ func TestClient_GetTokenSupply(t *testing.T) {
 	out, err := client.GetTokenSupply(
 		context.Background(),
 		pubKey,
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -2267,14 +2482,14 @@ func TestClient_GetTokenSupply(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getTokenSupply",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -2299,7 +2514,7 @@ func TestClient_GetTransaction(t *testing.T) {
 	maxSupportedTransactionVersion := uint64(0)
 	opts := GetTransactionOpts{
 		Encoding:                       solana.EncodingBase64,
-		Commitment:                     CommitmentMax,
+		Commitment:                     CommitmentFinalized,
 		MaxSupportedTransactionVersion: &maxSupportedTransactionVersion,
 	}
 	out, err := client.GetTransaction(
@@ -2315,15 +2530,15 @@ func TestClient_GetTransaction(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getTransaction",
-			"params": []interface{}{
+			"params": []any{
 				tx,
-				map[string]interface{}{
+				map[string]any{
 					"encoding":                       string(solana.EncodingBase64),
-					"commitment":                     string(CommitmentMax),
+					"commitment":                     string(CommitmentFinalized),
 					"maxSupportedTransactionVersion": float64(maxSupportedTransactionVersion),
 				},
 			},
@@ -2413,7 +2628,7 @@ func TestClient_GetParsedTransaction(t *testing.T) {
 	tx := "KBVcTWwgEhVzwywtunhAXRKjXYYEdPcSCpuEkg484tiE3dFGzHDu9LKKH23uBMdfYt3JCPHeaVeDTZWecboyTrd"
 
 	opts := GetParsedTransactionOpts{
-		Commitment: CommitmentMax,
+		Commitment: CommitmentFinalized,
 	}
 	out, err := client.GetParsedTransaction(
 		context.Background(),
@@ -2428,15 +2643,15 @@ func TestClient_GetParsedTransaction(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getTransaction",
-			"params": []interface{}{
+			"params": []any{
 				tx,
-				map[string]interface{}{
+				map[string]any{
 					"encoding":   string(solana.EncodingJSONParsed),
-					"commitment": string(CommitmentMax),
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -2445,7 +2660,7 @@ func TestClient_GetParsedTransaction(t *testing.T) {
 
 	assert.Equal(t, uint64(2), out.Meta.InnerInstructions[0].Index)
 	assert.Equal(t, &InstructionInfo{
-		Info: map[string]interface{}{
+		Info: map[string]any{
 			"account":   "BMnsyyG6S6zkaE3K5X3nbRMKdvBS5dT6HhcMozBVL7Ly",
 			"amount":    "47444666",
 			"authority": "7oPa2PHQdZmjSPqvpZN7MQxnC7Dcf3uL4oLqknGLk2S3",
@@ -2454,13 +2669,63 @@ func TestClient_GetParsedTransaction(t *testing.T) {
 		InstructionType: "burn",
 	}, out.Meta.InnerInstructions[0].Instructions[0].Parsed.asInstructionInfo)
 	assert.Equal(t, &InstructionInfo{
-		Info: map[string]interface{}{
+		Info: map[string]any{
 			"destination": "9bFNrXNb2WTx8fMHXCheaZqkLZ3YCCaiqTftHxeintHy",
 			"lamports":    float64(100),
 			"source":      "G7Hf2J55BAkHtbbXPh94UTGRCQioKPpnb5oKQMBteXo",
 		},
 		InstructionType: "transfer",
 	}, out.Transaction.Message.Instructions[0].Parsed.asInstructionInfo)
+}
+
+func TestClient_GetTransaction_EncodingJSON(t *testing.T) {
+	responseBody := `{"blockTime":1624821990,"meta":{"err":null,"fee":5000,"innerInstructions":[],"logMessages":[],"postBalances":[199247210749,90459349430703,1,1,1],"postTokenBalances":[],"preBalances":[199247215749,90459349430703,1,1,1],"preTokenBalances":[],"rewards":[],"status":{"Ok":null}},"slot":83311386,"transaction":{"message":{"accountKeys":["2ZZkgKcBfp4tW8qCLj2yjxRYh9CuvEVJWb6e2KKS91Mj","53R9tmVrTQwJAgaUCWEA7SiVf7eWAbaQarZ159ixt2D9","SysvarS1otHashes111111111111111111111111111","SysvarC1ock11111111111111111111111111111111","Vote111111111111111111111111111111111111111"],"header":{"numReadonlySignedAccounts":0,"numReadonlyUnsignedAccounts":3,"numRequiredSignatures":1},"instructions":[{"accounts":[1,2,3,0],"data":"3yZe7d","programIdIndex":4}],"recentBlockhash":"6o9C27iJ5rPi7wEpvQu1cFbB1WnRudtsPnbY8GvFWrgR"},"signatures":["QPzWhnwHnCwk3nj1zVCcjz1VP7EcAKouPg9Joietje3GnQTVQ5XyWxyPC3zHby8K5ahSn9SbQupauDbVRvv5DuL"]}}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	txSig := "KBVcTWwgEhVzwywtunhAXRKjXYYEdPcSCpuEkg484tiE3dFGzHDu9LKKH23uBMdfYt3JCPHeaVeDTZWecboyTrd"
+
+	out, err := client.GetTransaction(
+		context.Background(),
+		solana.MustSignatureFromBase58(txSig),
+		&GetTransactionOpts{
+			Encoding: solana.EncodingJSON,
+		},
+	)
+	require.NoError(t, err)
+
+	// Verify request sent encoding: "json"
+	reqBody := server.RequestBody(t)
+	assert.NotNil(t, reqBody["id"])
+	reqBody["id"] = any(nil)
+	assert.Equal(t,
+		map[string]any{
+			"id":      any(nil),
+			"jsonrpc": "2.0",
+			"method":  "getTransaction",
+			"params": []any{
+				txSig,
+				map[string]any{
+					"encoding": string(solana.EncodingJSON),
+				},
+			},
+		},
+		reqBody,
+	)
+
+	// Verify response is usable: GetTransaction must return a populated transaction.
+	require.NotNil(t, out.Transaction)
+	tx, err := out.Transaction.GetTransaction()
+	require.NoError(t, err)
+	require.Len(t, tx.Signatures, 1)
+	assert.Equal(t,
+		solana.MustSignatureFromBase58("QPzWhnwHnCwk3nj1zVCcjz1VP7EcAKouPg9Joietje3GnQTVQ5XyWxyPC3zHby8K5ahSn9SbQupauDbVRvv5DuL"),
+		tx.Signatures[0],
+	)
+	require.Len(t, tx.Message.AccountKeys, 5)
+	assert.Equal(t, solana.MustPublicKeyFromBase58("2ZZkgKcBfp4tW8qCLj2yjxRYh9CuvEVJWb6e2KKS91Mj"), tx.Message.AccountKeys[0])
+	assert.Equal(t, uint16(4), tx.Message.Instructions[0].ProgramIDIndex)
 }
 
 func TestClient_GetTransactionCount(t *testing.T) {
@@ -2471,7 +2736,7 @@ func TestClient_GetTransactionCount(t *testing.T) {
 
 	out, err := client.GetTransactionCount(
 		context.Background(),
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -2481,13 +2746,13 @@ func TestClient_GetTransactionCount(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getTransactionCount",
-			"params": []interface{}{
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+			"params": []any{
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -2518,7 +2783,7 @@ func TestClient_GetVersion(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getVersion",
@@ -2541,7 +2806,7 @@ func TestClient_GetVoteAccounts(t *testing.T) {
 
 	opts := &GetVoteAccountsOpts{
 		VotePubkey: solana.MustPublicKeyFromBase58("vot33MHDqT6nSwubGzqtc6m16ChcUywxV7tNULF19Vu").ToPointer(),
-		Commitment: CommitmentMax,
+		Commitment: CommitmentFinalized,
 	}
 	out, err := client.GetVoteAccounts(
 		context.Background(),
@@ -2555,14 +2820,14 @@ func TestClient_GetVoteAccounts(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getVoteAccounts",
-			"params": []interface{}{
-				map[string]interface{}{
+			"params": []any{
+				map[string]any{
 					"votePubkey": opts.VotePubkey.String(),
-					"commitment": string(CommitmentMax),
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -2574,6 +2839,36 @@ func TestClient_GetVoteAccounts(t *testing.T) {
 	got := mustJSONToInterface(mustAnyToJSON(out))
 
 	assert.Equal(t, expected, got, "both deserialized values must be equal")
+}
+
+func TestClient_GetVoteAccounts_WithCommissionBps(t *testing.T) {
+	responseBody := `{"current":[{"activatedStake":5000000000,"commission":7,"inflationRewardsCommissionBps":700,"epochCredits":[[127,1124979,892885]],"epochVoteAccount":true,"lastVote":51699331,"nodePubkey":"z3roU4WgvZvYkAEAYmUGK4LkPK6qFii6uzgMAswGYjb","rootSlot":51699288,"votePubkey":"vot33MHDqT6nSwubGzqtc6m16ChcUywxV7tNULF19Vu"}],"delinquent":[]}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	out, err := client.GetVoteAccounts(context.Background(), nil)
+	require.NoError(t, err)
+
+	require.Len(t, out.Current, 1)
+	va := out.Current[0]
+	assert.Equal(t, uint8(7), va.Commission)
+	require.NotNil(t, va.InflationRewardsCommissionBps)
+	assert.Equal(t, uint16(700), *va.InflationRewardsCommissionBps)
+}
+
+func TestClient_GetVoteAccounts_WithoutCommissionBps(t *testing.T) {
+	// Backward compatibility: pre-SIMD-0291 responses without inflationRewardsCommissionBps
+	responseBody := `{"current":[{"activatedStake":5000000000,"commission":7,"epochCredits":[[127,1124979,892885]],"epochVoteAccount":true,"lastVote":51699331,"nodePubkey":"z3roU4WgvZvYkAEAYmUGK4LkPK6qFii6uzgMAswGYjb","rootSlot":51699288,"votePubkey":"vot33MHDqT6nSwubGzqtc6m16ChcUywxV7tNULF19Vu"}],"delinquent":[]}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	out, err := client.GetVoteAccounts(context.Background(), nil)
+	require.NoError(t, err)
+
+	require.Len(t, out.Current, 1)
+	assert.Nil(t, out.Current[0].InflationRewardsCommissionBps)
 }
 
 func TestClient_MinimumLedgerSlot(t *testing.T) {
@@ -2593,7 +2888,7 @@ func TestClient_MinimumLedgerSlot(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "minimumLedgerSlot",
@@ -2622,7 +2917,7 @@ func TestClient_RequestAirdrop(t *testing.T) {
 		context.Background(),
 		pubKey,
 		lamports,
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -2632,15 +2927,15 @@ func TestClient_RequestAirdrop(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "requestAirdrop",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
 				float64(lamports),
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -2654,8 +2949,8 @@ func TestClient_RequestAirdrop(t *testing.T) {
 	assert.Equal(t, expected, got, "both deserialized values must be equal")
 }
 
-func TestClient_GetStakeActivation(t *testing.T) {
-	responseBody := `{"active":197717120,"inactive":0,"state":"active"}`
+func TestClient_RequestAirdropWithOpts(t *testing.T) {
+	responseBody := `"3ZmWDnFJ5REjxtmtQRrczmVDraVZs7BpUFo3NRfnoQs6wvTJ2kTkw9YyGod291UHjK5Qg6w63Hqn7t6nrGMLWhga"`
 	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
 	defer closer()
 	client := New(server.URL)
@@ -2663,41 +2958,84 @@ func TestClient_GetStakeActivation(t *testing.T) {
 	pubkeyString := "7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932"
 	pubKey := solana.MustPublicKeyFromBase58(pubkeyString)
 
-	epoch := uint64(123)
-	out, err := client.GetStakeActivation(
+	blockhash := solana.MustHashFromBase58("EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N")
+	lamports := uint64(10000000)
+	out, err := client.RequestAirdropWithOpts(
 		context.Background(),
 		pubKey,
-		CommitmentMax,
-		&epoch,
+		lamports,
+		&RequestAirdropOpts{
+			Commitment:      CommitmentFinalized,
+			RecentBlockhash: &blockhash,
+		},
 	)
 	require.NoError(t, err)
 
-	// the ID is random, so we can't assert it; let's check that it is set, and then remove it
 	reqBody := server.RequestBody(t)
 	assert.NotNil(t, reqBody["id"])
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
-			"method":  "getStakeActivation",
-			"params": []interface{}{
+			"method":  "requestAirdrop",
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
-					"epoch":      float64(epoch),
+				float64(lamports),
+				map[string]any{
+					"commitment":      string(CommitmentFinalized),
+					"recentBlockhash": blockhash.String(),
 				},
 			},
 		},
 		reqBody,
 	)
 
-	expected := mustJSONToInterface([]byte(responseBody))
+	assert.Equal(t,
+		solana.MustSignatureFromBase58("3ZmWDnFJ5REjxtmtQRrczmVDraVZs7BpUFo3NRfnoQs6wvTJ2kTkw9YyGod291UHjK5Qg6w63Hqn7t6nrGMLWhga"),
+		out,
+	)
+}
 
-	got := mustJSONToInterface(mustAnyToJSON(out))
+func TestClient_RequestAirdropWithOpts_OnlyCommitment(t *testing.T) {
+	responseBody := `"3ZmWDnFJ5REjxtmtQRrczmVDraVZs7BpUFo3NRfnoQs6wvTJ2kTkw9YyGod291UHjK5Qg6w63Hqn7t6nrGMLWhga"`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
 
-	assert.Equal(t, expected, got, "both deserialized values must be equal")
+	pubkeyString := "7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932"
+	pubKey := solana.MustPublicKeyFromBase58(pubkeyString)
+
+	lamports := uint64(10000000)
+	_, err := client.RequestAirdropWithOpts(
+		context.Background(),
+		pubKey,
+		lamports,
+		&RequestAirdropOpts{
+			Commitment: CommitmentFinalized,
+		},
+	)
+	require.NoError(t, err)
+
+	reqBody := server.RequestBody(t)
+	reqBody["id"] = any(nil)
+
+	assert.Equal(t,
+		map[string]any{
+			"id":      any(nil),
+			"jsonrpc": "2.0",
+			"method":  "requestAirdrop",
+			"params": []any{
+				pubkeyString,
+				float64(lamports),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
+				},
+			},
+		},
+		reqBody,
+	)
 }
 
 func TestClient_GetTokenAccountBalance(t *testing.T) {
@@ -2712,7 +3050,7 @@ func TestClient_GetTokenAccountBalance(t *testing.T) {
 	out, err := client.GetTokenAccountBalance(
 		context.Background(),
 		pubKey,
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -2722,14 +3060,14 @@ func TestClient_GetTokenAccountBalance(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getTokenAccountBalance",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -2762,7 +3100,7 @@ func TestClient_GetTokenAccountsByDelegate(t *testing.T) {
 			ProgramId: &programID,
 		},
 		&GetTokenAccountsOpts{
-			Commitment: CommitmentMax,
+			Commitment: CommitmentFinalized,
 			Encoding:   solana.EncodingJSONParsed,
 		},
 	)
@@ -2774,17 +3112,17 @@ func TestClient_GetTokenAccountsByDelegate(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getTokenAccountsByDelegate",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
+				map[string]any{
 					"programId": string(programIDString),
 				},
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 					"encoding":   string(solana.EncodingJSONParsed),
 				},
 			},
@@ -2818,7 +3156,7 @@ func TestClient_GetTokenAccountsByOwner(t *testing.T) {
 			ProgramId: &programID,
 		},
 		&GetTokenAccountsOpts{
-			Commitment: CommitmentMax,
+			Commitment: CommitmentFinalized,
 			Encoding:   solana.EncodingJSONParsed,
 		},
 	)
@@ -2830,17 +3168,17 @@ func TestClient_GetTokenAccountsByOwner(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getTokenAccountsByOwner",
-			"params": []interface{}{
+			"params": []any{
 				pubkeyString,
-				map[string]interface{}{
+				map[string]any{
 					"programId": string(programIDString),
 				},
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 					"encoding":   string(solana.EncodingJSONParsed),
 				},
 			},
@@ -2932,7 +3270,7 @@ func TestClient_IsBlockhashValid(t *testing.T) {
 	out, err := client.IsBlockhashValid(
 		context.Background(),
 		blockhash,
-		CommitmentMax,
+		CommitmentFinalized,
 	)
 	require.NoError(t, err)
 
@@ -2942,14 +3280,14 @@ func TestClient_IsBlockhashValid(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "isBlockhashValid",
-			"params": []interface{}{
+			"params": []any{
 				blockhashString,
-				map[string]interface{}{
-					"commitment": string(CommitmentMax),
+				map[string]any{
+					"commitment": string(CommitmentFinalized),
 				},
 			},
 		},
@@ -2966,7 +3304,163 @@ func TestClient_IsBlockhashValid(t *testing.T) {
 }
 
 func TestClient_SimulateTransaction(t *testing.T) {
-	// TODO
+	responseBody := `{"context":{"slot":218},"value":{"accounts":null,"logs":["Program 83astBRguLMdt2h5U1Tpdq5tjFoJ6noeGwaY3mDLVcri invoke [1]","Program 83astBRguLMdt2h5U1Tpdq5tjFoJ6noeGwaY3mDLVcri consumed 2366 of 1400000 compute units","Program return: 83astBRguLMdt2h5U1Tpdq5tjFoJ6noeGwaY3mDLVcri KgAAAAAAAAA=","Program 83astBRguLMdt2h5U1Tpdq5tjFoJ6noeGwaY3mDLVcri success"],"unitsConsumed":2366}}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	txData := []byte{1, 2, 3, 4} // dummy transaction data
+	out, err := client.SimulateRawTransactionWithOpts(
+		context.Background(),
+		txData,
+		nil,
+	)
+	require.NoError(t, err)
+
+	assert.Nil(t, out.Value.Err)
+	assert.Len(t, out.Value.Logs, 4)
+	assert.Equal(t, uint64(2366), *out.Value.UnitsConsumed)
+
+	reqBody := server.RequestBody(t)
+	assert.NotNil(t, reqBody["id"])
+	reqBody["id"] = any(nil)
+
+	assert.Equal(t,
+		map[string]any{
+			"id":      any(nil),
+			"jsonrpc": "2.0",
+			"method":  "simulateTransaction",
+			"params": []any{
+				base64.StdEncoding.EncodeToString(txData),
+				map[string]any{
+					"encoding": "base64",
+				},
+			},
+		},
+		reqBody,
+	)
+
+	expected := mustJSONToInterface([]byte(responseBody))
+	got := mustJSONToInterface(mustAnyToJSON(out))
+	assert.Equal(t, expected, got, "both deserialized values must be equal")
+}
+
+func TestClient_SimulateTransactionWithOpts_AllOptions(t *testing.T) {
+	responseBody := `{"context":{"slot":218},"value":{"err":null,"logs":["Program log: hello"],"accounts":null,"unitsConsumed":1000}}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	txData := []byte{1, 2, 3, 4}
+	minContextSlot := uint64(100)
+	out, err := client.SimulateRawTransactionWithOpts(
+		context.Background(),
+		txData,
+		&SimulateTransactionOpts{
+			SigVerify:              true,
+			Commitment:             CommitmentProcessed,
+			ReplaceRecentBlockhash: true,
+			InnerInstructions:      true,
+			MinContextSlot:         &minContextSlot,
+			Accounts: &SimulateTransactionAccountsOpts{
+				Encoding:  solana.EncodingBase64,
+				Addresses: []solana.PublicKey{solana.MustPublicKeyFromBase58("7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932")},
+			},
+		},
+	)
+	require.NoError(t, err)
+	assert.NotNil(t, out)
+
+	reqBody := server.RequestBody(t)
+	reqBody["id"] = any(nil)
+
+	assert.Equal(t,
+		map[string]any{
+			"id":      any(nil),
+			"jsonrpc": "2.0",
+			"method":  "simulateTransaction",
+			"params": []any{
+				base64.StdEncoding.EncodeToString(txData),
+				map[string]any{
+					"encoding":               "base64",
+					"sigVerify":              true,
+					"commitment":             string(CommitmentProcessed),
+					"replaceRecentBlockhash": true,
+					"innerInstructions":      true,
+					"minContextSlot":         float64(100),
+					"accounts": map[string]any{
+						"encoding":  string(solana.EncodingBase64),
+						"addresses": []any{"7xLk17EQQ5KLDLDe44wCmupJKJjTGd8hs3eSVVhCx932"},
+					},
+				},
+			},
+		},
+		reqBody,
+	)
+}
+
+func TestClient_SimulateTransaction_InnerInstructions(t *testing.T) {
+	responseBody := `{"context":{"slot":300},"value":{"logs":["Program log: invoke"],"accounts":null,"unitsConsumed":5000,"innerInstructions":[{"index":0,"instructions":[{"programIdIndex":2,"accounts":[0,1],"data":"3Bxs4ThwQbE4vyj5","stackHeight":2}]}],"returnData":{"programId":"83astBRguLMdt2h5U1Tpdq5tjFoJ6noeGwaY3mDLVcri","data":["KgAAAAAAAAA=","base64"]}}}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	txData := []byte{1, 2, 3, 4}
+	out, err := client.SimulateRawTransactionWithOpts(
+		context.Background(),
+		txData,
+		&SimulateTransactionOpts{
+			InnerInstructions: true,
+		},
+	)
+	require.NoError(t, err)
+
+	require.Len(t, out.Value.InnerInstructions, 1)
+	assert.Equal(t, uint16(0), out.Value.InnerInstructions[0].Index)
+	require.Len(t, out.Value.InnerInstructions[0].Instructions, 1)
+	assert.Equal(t, uint16(2), out.Value.InnerInstructions[0].Instructions[0].ProgramIDIndex)
+	assert.Equal(t, []uint16{0, 1}, out.Value.InnerInstructions[0].Instructions[0].Accounts)
+	assert.Equal(t, uint16(2), out.Value.InnerInstructions[0].Instructions[0].StackHeight)
+
+	require.NotNil(t, out.Value.ReturnData)
+	assert.Equal(t, solana.MustPublicKeyFromBase58("83astBRguLMdt2h5U1Tpdq5tjFoJ6noeGwaY3mDLVcri"), out.Value.ReturnData.ProgramId)
+
+	expected := mustJSONToInterface([]byte(responseBody))
+	got := mustJSONToInterface(mustAnyToJSON(out))
+	assert.Equal(t, expected, got, "both deserialized values must be equal")
+}
+
+func TestClient_SimulateTransaction_FullResult(t *testing.T) {
+	responseBody := `{"context":{"slot":400},"value":{"logs":["Program log: ok"],"accounts":null,"unitsConsumed":3000,"loadedAccountsDataSize":1024,"fee":5000,"preBalances":[10000000,0],"postBalances":[9995000,0],"loadedAddresses":{"readonly":["11111111111111111111111111111111"],"writable":[]},"replacementBlockhash":{"blockhash":"EETubP5AKHgjPAhzPkToc6S4eibc4FFqQGnHR1Sh9rAr","lastValidBlockHeight":500}}}`
+	server, closer := mockJSONRPC(t, stdjson.RawMessage(wrapIntoRPC(responseBody)))
+	defer closer()
+	client := New(server.URL)
+
+	txData := []byte{1, 2, 3, 4}
+	out, err := client.SimulateRawTransactionWithOpts(
+		context.Background(),
+		txData,
+		&SimulateTransactionOpts{
+			ReplaceRecentBlockhash: true,
+			InnerInstructions:      true,
+		},
+	)
+	require.NoError(t, err)
+
+	assert.Nil(t, out.Value.Err)
+	assert.Equal(t, uint64(3000), *out.Value.UnitsConsumed)
+	assert.Equal(t, uint32(1024), *out.Value.LoadedAccountsDataSize)
+	assert.Equal(t, uint64(5000), *out.Value.Fee)
+	assert.Equal(t, []uint64{10000000, 0}, out.Value.PreBalances)
+	assert.Equal(t, []uint64{9995000, 0}, out.Value.PostBalances)
+	require.NotNil(t, out.Value.ReplacementBlockhash)
+	assert.Equal(t, uint64(500), out.Value.ReplacementBlockhash.LastValidBlockHeight)
+	require.NotNil(t, out.Value.LoadedAddresses)
+	assert.Len(t, out.Value.LoadedAddresses.ReadOnly, 1)
+
+	expected := mustJSONToInterface([]byte(responseBody))
+	got := mustJSONToInterface(mustAnyToJSON(out))
+	assert.Equal(t, expected, got, "both deserialized values must be equal")
 }
 
 func TestClient_GetFeeForMessage(t *testing.T) {
@@ -2988,13 +3482,13 @@ func TestClient_GetFeeForMessage(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getFeeForMessage",
-			"params": []interface{}{
+			"params": []any{
 				"AQABAgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQAA",
-				map[string]interface{}{
+				map[string]any{
 					"commitment": string(CommitmentProcessed),
 				},
 			},
@@ -3026,7 +3520,7 @@ func TestClient_GetHighestSnapshotSlot(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getHighestSnapshotSlot",
@@ -3059,12 +3553,12 @@ func TestClient_GetLatestBlockhash(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getLatestBlockhash",
-			"params": []interface{}{
-				map[string]interface{}{
+			"params": []any{
+				map[string]any{
 					"commitment": string(CommitmentProcessed),
 				},
 			},
@@ -3103,12 +3597,12 @@ func TestClient_GetRecentPrioritizationFees(t *testing.T) {
 	reqBody["id"] = any(nil)
 
 	assert.Equal(t,
-		map[string]interface{}{
+		map[string]any{
 			"id":      any(nil),
 			"jsonrpc": "2.0",
 			"method":  "getRecentPrioritizationFees",
-			"params": []interface{}{
-				[]interface{}{
+			"params": []any{
+				[]any{
 					accounts[0].String(),
 					accounts[1].String(),
 				},

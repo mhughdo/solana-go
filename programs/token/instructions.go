@@ -33,16 +33,16 @@ const MAX_SIGNERS = 11
 
 var ProgramID ag_solanago.PublicKey = ag_solanago.TokenProgramID
 
-func SetProgramID(pubkey ag_solanago.PublicKey) {
+func SetProgramID(pubkey ag_solanago.PublicKey) error {
 	ProgramID = pubkey
-	ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
+	return ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
 }
 
 const ProgramName = "Token"
 
 func init() {
 	if !ProgramID.IsZero() {
-		ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
+		ag_solanago.MustRegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
 	}
 }
 
@@ -241,67 +241,67 @@ var InstructionImplDef = ag_binary.NewVariantDefinition(
 	ag_binary.Uint8TypeIDEncoding,
 	[]ag_binary.VariantType{
 		{
-			"InitializeMint", (*InitializeMint)(nil),
+			Name: "InitializeMint", Type: (*InitializeMint)(nil),
 		},
 		{
-			"InitializeAccount", (*InitializeAccount)(nil),
+			Name: "InitializeAccount", Type: (*InitializeAccount)(nil),
 		},
 		{
-			"InitializeMultisig", (*InitializeMultisig)(nil),
+			Name: "InitializeMultisig", Type: (*InitializeMultisig)(nil),
 		},
 		{
-			"Transfer", (*Transfer)(nil),
+			Name: "Transfer", Type: (*Transfer)(nil),
 		},
 		{
-			"Approve", (*Approve)(nil),
+			Name: "Approve", Type: (*Approve)(nil),
 		},
 		{
-			"Revoke", (*Revoke)(nil),
+			Name: "Revoke", Type: (*Revoke)(nil),
 		},
 		{
-			"SetAuthority", (*SetAuthority)(nil),
+			Name: "SetAuthority", Type: (*SetAuthority)(nil),
 		},
 		{
-			"MintTo", (*MintTo)(nil),
+			Name: "MintTo", Type: (*MintTo)(nil),
 		},
 		{
-			"Burn", (*Burn)(nil),
+			Name: "Burn", Type: (*Burn)(nil),
 		},
 		{
-			"CloseAccount", (*CloseAccount)(nil),
+			Name: "CloseAccount", Type: (*CloseAccount)(nil),
 		},
 		{
-			"FreezeAccount", (*FreezeAccount)(nil),
+			Name: "FreezeAccount", Type: (*FreezeAccount)(nil),
 		},
 		{
-			"ThawAccount", (*ThawAccount)(nil),
+			Name: "ThawAccount", Type: (*ThawAccount)(nil),
 		},
 		{
-			"TransferChecked", (*TransferChecked)(nil),
+			Name: "TransferChecked", Type: (*TransferChecked)(nil),
 		},
 		{
-			"ApproveChecked", (*ApproveChecked)(nil),
+			Name: "ApproveChecked", Type: (*ApproveChecked)(nil),
 		},
 		{
-			"MintToChecked", (*MintToChecked)(nil),
+			Name: "MintToChecked", Type: (*MintToChecked)(nil),
 		},
 		{
-			"BurnChecked", (*BurnChecked)(nil),
+			Name: "BurnChecked", Type: (*BurnChecked)(nil),
 		},
 		{
-			"InitializeAccount2", (*InitializeAccount2)(nil),
+			Name: "InitializeAccount2", Type: (*InitializeAccount2)(nil),
 		},
 		{
-			"SyncNative", (*SyncNative)(nil),
+			Name: "SyncNative", Type: (*SyncNative)(nil),
 		},
 		{
-			"InitializeAccount3", (*InitializeAccount3)(nil),
+			Name: "InitializeAccount3", Type: (*InitializeAccount3)(nil),
 		},
 		{
-			"InitializeMultisig2", (*InitializeMultisig2)(nil),
+			Name: "InitializeMultisig2", Type: (*InitializeMultisig2)(nil),
 		},
 		{
-			"InitializeMint2", (*InitializeMint2)(nil),
+			Name: "InitializeMint2", Type: (*InitializeMint2)(nil),
 		},
 	},
 )
@@ -338,7 +338,7 @@ func (inst Instruction) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
 	return encoder.Encode(inst.Impl)
 }
 
-func registryDecodeInstruction(accounts []*ag_solanago.AccountMeta, data []byte) (interface{}, error) {
+func registryDecodeInstruction(accounts []*ag_solanago.AccountMeta, data []byte) (any, error) {
 	inst, err := DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, err

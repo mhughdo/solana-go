@@ -24,7 +24,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	jsoniter "github.com/json-iterator/go"
+	gojson "github.com/goccy/go-json"
 	"github.com/logrusorgru/aurora"
 	. "github.com/logrusorgru/aurora"
 	"go.uber.org/zap"
@@ -32,8 +32,6 @@ import (
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/crypto/ssh/terminal"
 )
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 const (
 	ansiColorEscape   = "\033["
@@ -44,7 +42,7 @@ const (
 var bufferpool = buffer.NewPool()
 var levelToColor map[zapcore.Level]Color
 
-var _loggerPool = sync.Pool{New: func() interface{} {
+var _loggerPool = sync.Pool{New: func() any {
 	return &Encoder{}
 }}
 
@@ -231,7 +229,7 @@ func addFields(enc zapcore.ObjectEncoder, fields []zapcore.Field) {
 // For JSON-escaping; see jsonEncoder.safeAddString below.
 const _hex = "0123456789abcdef"
 
-var _jsonPool = sync.Pool{New: func() interface{} {
+var _jsonPool = sync.Pool{New: func() any {
 	return &jsonEncoder{}
 }}
 
@@ -260,7 +258,7 @@ type jsonEncoder struct {
 
 	// for encoding generic values by reflection
 	reflectBuf *buffer.Buffer
-	reflectEnc *jsoniter.Encoder
+	reflectEnc *gojson.Encoder
 }
 
 func newJSONEncoder(cfg zapcore.EncoderConfig, spaced bool) *jsonEncoder {
@@ -318,7 +316,7 @@ func (enc *jsonEncoder) AddInt64(key string, val int64) {
 func (enc *jsonEncoder) resetReflectBuf() {
 	if enc.reflectBuf == nil {
 		enc.reflectBuf = bufferpool.Get()
-		enc.reflectEnc = json.NewEncoder(enc.reflectBuf)
+		enc.reflectEnc = gojson.NewEncoder(enc.reflectBuf)
 
 		// For consistency with our custom JSON encoder.
 		enc.reflectEnc.SetEscapeHTML(false)
@@ -331,7 +329,7 @@ var nullLiteralBytes = []byte("null")
 
 // Only invoke the standard JSON encoder if there is actually something to
 // encode; otherwise write JSON null literal directly.
-func (enc *jsonEncoder) encodeReflected(obj interface{}) ([]byte, error) {
+func (enc *jsonEncoder) encodeReflected(obj any) ([]byte, error) {
 	if obj == nil {
 		return nullLiteralBytes, nil
 	}
@@ -343,7 +341,7 @@ func (enc *jsonEncoder) encodeReflected(obj interface{}) ([]byte, error) {
 	return enc.reflectBuf.Bytes(), nil
 }
 
-func (enc *jsonEncoder) AddReflected(key string, obj interface{}) error {
+func (enc *jsonEncoder) AddReflected(key string, obj any) error {
 	valueBytes, err := enc.encodeReflected(obj)
 	if err != nil {
 		return err
@@ -431,7 +429,7 @@ func (enc *jsonEncoder) AppendInt64(val int64) {
 	enc.buf.AppendInt(val)
 }
 
-func (enc *jsonEncoder) AppendReflected(val interface{}) error {
+func (enc *jsonEncoder) AppendReflected(val any) error {
 	valueBytes, err := enc.encodeReflected(val)
 	if err != nil {
 		return err

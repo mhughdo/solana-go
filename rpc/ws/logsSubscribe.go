@@ -29,7 +29,7 @@ type LogResult struct {
 		// The transaction signature.
 		Signature solana.Signature `json:"signature"`
 		// Error if transaction failed, null if transaction succeeded.
-		Err interface{} `json:"err"`
+		Err any `json:"err"`
 		// Array of log messages the transaction instructions output
 		// during execution, null if simulation failed before the transaction
 		// was able to execute (for example due to an invalid blockhash
@@ -128,12 +128,12 @@ func LogsSubscribeMentionsG[S solana.Signature | solana.RawSolanaSignature, P in
 
 // LogsSubscribe subscribes to transaction logging.
 func (cl *Client) logsSubscribe(
-	filter interface{},
+	filter any,
 	commitment rpc.CommitmentType,
 ) (*LogSubscription, error) {
 
-	params := []interface{}{filter}
-	conf := map[string]interface{}{}
+	params := []any{filter}
+	conf := map[string]any{}
 	if commitment != "" {
 		conf["commitment"] = commitment
 	}
@@ -143,7 +143,7 @@ func (cl *Client) logsSubscribe(
 		conf,
 		"logsSubscribe",
 		"logsUnsubscribe",
-		func(msg []byte) (interface{}, error) {
+		func(msg []byte) (any, error) {
 			var res LogResult
 			err := decodeResponseFromMessage(msg, &res)
 			return &res, err
@@ -209,19 +209,6 @@ func (sw *LogSubscription) Recv(ctx context.Context) (*LogResult, error) {
 
 func (sw *LogSubscription) Err() <-chan error {
 	return sw.sub.err
-}
-
-func (sw *LogSubscription) Response() <-chan *LogResult {
-	typedChan := make(chan *LogResult, 1)
-	go func(ch chan *LogResult) {
-		// TODO: will this subscription yield more than one result?
-		d, ok := <-sw.sub.stream
-		if !ok {
-			return
-		}
-		ch <- d.(*LogResult)
-	}(typedChan)
-	return typedChan
 }
 
 func (sw *LogSubscription) Unsubscribe() {

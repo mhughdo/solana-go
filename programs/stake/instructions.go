@@ -29,15 +29,15 @@ import (
 
 var ProgramID solana.PublicKey = solana.StakeProgramID
 
-func SetProgramID(pubkey solana.PublicKey) {
+func SetProgramID(pubkey solana.PublicKey) error {
 	ProgramID = pubkey
-	solana.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
+	return solana.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
 }
 
 const ProgramName = "Stake"
 
 func init() {
-	solana.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
+	solana.MustRegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
 }
 
 const (
@@ -53,6 +53,30 @@ const (
 	Instruction_Withdraw
 	// Deactivates the stake in the account
 	Instruction_Deactivate
+	// Set lockup for a stake account
+	Instruction_SetLockup
+	// Merge two stake accounts
+	Instruction_Merge
+	// Authorize a key to manage stake or withdrawal with a derived key
+	Instruction_AuthorizeWithSeed
+	// Initialize a stake account with checked authorities
+	Instruction_InitializeChecked
+	// Authorize with checked new authority as signer
+	Instruction_AuthorizeChecked
+	// Authorize with checked new authority as signer using a derived key
+	Instruction_AuthorizeCheckedWithSeed
+	// Set lockup with checked new lockup authority as signer
+	Instruction_SetLockupChecked
+	// Get the minimum delegation
+	Instruction_GetMinimumDelegation
+	// Deactivate delinquent stake
+	Instruction_DeactivateDelinquent
+	// Redelegate (deprecated)
+	Instruction_Redelegate
+	// Move stake between accounts with the same authorities
+	Instruction_MoveStake
+	// Move lamports between accounts with the same authorities
+	Instruction_MoveLamports
 )
 
 type Instruction struct {
@@ -70,24 +94,24 @@ func (inst *Instruction) EncodeToTree(parent treeout.Branches) {
 var InstructionImplDef = bin.NewVariantDefinition(
 	bin.Uint32TypeIDEncoding,
 	[]bin.VariantType{
-		{
-			"Initialize", (*Initialize)(nil),
-		},
-		{
-			"Authorize", nil,
-		},
-		{
-			"DelegateStake", (*DelegateStake)(nil),
-		},
-		{
-			"Split", (*Split)(nil),
-		},
-		{
-			"Withdraw", (*Withdraw)(nil),
-		},
-		{
-			"Deactivate", (*Deactivate)(nil),
-		},
+		{Name: "Initialize", Type: (*Initialize)(nil)},
+		{Name: "Authorize", Type: (*Authorize)(nil)},
+		{Name: "DelegateStake", Type: (*DelegateStake)(nil)},
+		{Name: "Split", Type: (*Split)(nil)},
+		{Name: "Withdraw", Type: (*Withdraw)(nil)},
+		{Name: "Deactivate", Type: (*Deactivate)(nil)},
+		{Name: "SetLockup", Type: (*SetLockup)(nil)},
+		{Name: "Merge", Type: (*Merge)(nil)},
+		{Name: "AuthorizeWithSeed", Type: (*AuthorizeWithSeed)(nil)},
+		{Name: "InitializeChecked", Type: (*InitializeChecked)(nil)},
+		{Name: "AuthorizeChecked", Type: (*AuthorizeChecked)(nil)},
+		{Name: "AuthorizeCheckedWithSeed", Type: (*AuthorizeCheckedWithSeed)(nil)},
+		{Name: "SetLockupChecked", Type: (*SetLockupChecked)(nil)},
+		{Name: "GetMinimumDelegation", Type: (*GetMinimumDelegation)(nil)},
+		{Name: "DeactivateDelinquent", Type: (*DeactivateDelinquent)(nil)},
+		{Name: "Redelegate", Type: (*Redelegate)(nil)},
+		{Name: "MoveStake", Type: (*MoveStake)(nil)},
+		{Name: "MoveLamports", Type: (*MoveLamports)(nil)},
 	},
 )
 
@@ -123,7 +147,7 @@ func (inst Instruction) MarshalWithEncoder(encoder *bin.Encoder) error {
 	return encoder.Encode(inst.Impl)
 }
 
-func registryDecodeInstruction(accounts []*solana.AccountMeta, data []byte) (interface{}, error) {
+func registryDecodeInstruction(accounts []*solana.AccountMeta, data []byte) (any, error) {
 	inst, err := DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, err

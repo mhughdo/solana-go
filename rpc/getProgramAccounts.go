@@ -7,7 +7,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//	http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,6 +40,31 @@ func (cl *Client) GetProgramAccountsWithOpts(
 	publicKey solana.PublicKey,
 	opts *GetProgramAccountsOpts,
 ) (out GetProgramAccountsResult, err error) {
+	params := buildGetProgramAccountsParams(publicKey, opts)
+	err = cl.rpcClient.CallForInto(ctx, &out, "getProgramAccounts", params)
+	return
+}
+
+// GetProgramAccountsWithContext returns all accounts owned by the provided program publicKey,
+// wrapped in an RPC response with context (slot and apiVersion).
+// The WithContext option is automatically set to true.
+func (cl *Client) GetProgramAccountsWithContext(
+	ctx context.Context,
+	publicKey solana.PublicKey,
+	opts *GetProgramAccountsOpts,
+) (out *GetProgramAccountsWithContextResult, err error) {
+	var o GetProgramAccountsOpts
+	if opts != nil {
+		o = *opts
+	}
+	withCtx := true
+	o.WithContext = &withCtx
+	params := buildGetProgramAccountsParams(publicKey, &o)
+	err = cl.rpcClient.CallForInto(ctx, &out, "getProgramAccounts", params)
+	return
+}
+
+func buildGetProgramAccountsParams(publicKey solana.PublicKey, opts *GetProgramAccountsOpts) []any {
 	obj := M{
 		"encoding": "base64",
 	}
@@ -59,10 +84,15 @@ func (cl *Client) GetProgramAccountsWithOpts(
 				"length": opts.DataSlice.Length,
 			}
 		}
+		if opts.WithContext != nil {
+			obj["withContext"] = *opts.WithContext
+		}
+		if opts.SortResults != nil {
+			obj["sortResults"] = *opts.SortResults
+		}
+		if opts.MinContextSlot != nil {
+			obj["minContextSlot"] = *opts.MinContextSlot
+		}
 	}
-
-	params := []interface{}{publicKey, obj}
-
-	err = cl.rpcClient.CallForInto(ctx, &out, "getProgramAccounts", params)
-	return
+	return []any{publicKey, obj}
 }

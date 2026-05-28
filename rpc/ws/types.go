@@ -18,29 +18,32 @@
 package ws
 
 import (
-	stdjson "encoding/json"
 	"fmt"
-	"math/rand"
+	rand "math/rand/v2"
 	"net/http"
 	"time"
+
+	stdjson "github.com/goccy/go-json"
 )
 
 type request struct {
-	Version string      `json:"jsonrpc"`
-	Method  string      `json:"method"`
-	Params  interface{} `json:"params,omitempty"`
-	ID      uint64      `json:"id"`
+	Version string `json:"jsonrpc"`
+	Method  string `json:"method"`
+	Params  any    `json:"params,omitempty"`
+	ID      uint64 `json:"id"`
 }
 
-func newRequest(params []interface{}, method string, configuration map[string]interface{}, shortID bool) *request {
+const maxJSONSafeInteger = uint64(1<<53 - 1)
+
+func newRequest(params []any, method string, configuration map[string]any, shortID bool) *request {
 	if params != nil && configuration != nil {
 		params = append(params, configuration)
 	}
 	var ID uint64
 	if !shortID {
-		ID = uint64(rand.Int63())
+		ID = rand.Uint64N(maxJSONSafeInteger + 1)
 	} else {
-		ID = uint64(rand.Int31())
+		ID = uint64(rand.Uint32N(1 << 31))
 	}
 	return &request{
 		Version: "2.0",
@@ -65,9 +68,16 @@ type response struct {
 }
 
 type params struct {
-	Result       *stdjson.RawMessage `json:"result"`
-	Error        *stdjson.RawMessage `json:"error"`
-	Subscription int                 `json:"subscription"`
+	Result *stdjson.RawMessage `json:"result"`
+	Error  *stdjson.RawMessage `json:"error"`
+	// Subscription is the validator-assigned subscription id. The validator
+	// emits these as JSON unsigned 64-bit integers, so the field must use
+	// uint64 to round-trip safely. Using int here failed JSON decoding on
+	// 32-bit builds and on any value above math.MaxInt64 (issue #286). The
+	// value is not consumed downstream — the routing key is parsed
+	// separately via getUint64WithOk in handleMessage — but the field is
+	// kept so encoding/json does not error on the incoming notification.
+	Subscription uint64 `json:"subscription"`
 }
 
 type Options struct {

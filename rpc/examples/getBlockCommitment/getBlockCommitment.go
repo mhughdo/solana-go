@@ -25,14 +25,14 @@ func main() {
 	endpoint := rpc.TestNet_RPC
 	client := rpc.New(endpoint)
 
-	example, err := client.GetRecentBlockhash(context.TODO(), rpc.CommitmentFinalized)
+	slot, err := client.GetSlot(context.TODO(), rpc.CommitmentFinalized)
 	if err != nil {
 		panic(err)
 	}
 
 	out, err := client.GetBlockCommitment(
 		context.TODO(),
-		uint64(example.Context.Slot),
+		slot,
 	)
 	if err != nil {
 		panic(err)

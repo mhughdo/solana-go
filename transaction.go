@@ -21,15 +21,14 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/davecgh/go-spew/spew"
 	bin "github.com/gagliardetto/binary"
-	"github.com/gagliardetto/treeout"
-	"github.com/mr-tron/base58"
-	"go.uber.org/zap"
-
+	"github.com/gagliardetto/solana-go/base58"
 	"github.com/gagliardetto/solana-go/text"
+	"github.com/gagliardetto/treeout"
+	"go.uber.org/zap"
 )
 
 type Transaction struct {
@@ -254,12 +253,24 @@ func NewTransaction(instructions []Instruction, recentBlockHash Hash, opts ...Tr
 			}
 		}
 		if !found {
-			return nil, fmt.Errorf("cannot determine fee payer. You can ether pass the fee payer via the 'TransactionWithInstructions' option parameter or it falls back to the first instruction's first signer")
+			return nil, fmt.Errorf("cannot determine fee payer. You can either pass the fee payer via the 'TransactionWithInstructions' option parameter or it falls back to the first instruction's first signer")
 		}
 	}
 
-	addressLookupKeysMap := make(map[PublicKey]addressTablePubkeyWithIndex) // all accounts from tables as map
-	for addressTablePubKey, addressTable := range options.addressTables {
+	totalTableEntries := 0
+	for _, t := range options.addressTables {
+		totalTableEntries += len(t)
+	}
+	addressLookupKeysMap := make(map[PublicKey]addressTablePubkeyWithIndex, totalTableEntries) // all accounts from tables as map
+	sortedTableKeys := make(PublicKeySlice, 0, len(options.addressTables))
+	for k := range options.addressTables {
+		sortedTableKeys = append(sortedTableKeys, k)
+	}
+	slices.SortFunc(sortedTableKeys, func(a, b PublicKey) int {
+		return bytes.Compare(a[:], b[:])
+	})
+	for _, addressTablePubKey := range sortedTableKeys {
+		addressTable := options.addressTables[addressTablePubKey]
 		if len(addressTable) > 256 {
 			return nil, fmt.Errorf("max lookup table index exceeded for %s table", addressTablePubKey)
 		}
@@ -277,8 +288,12 @@ func NewTransaction(instructions []Instruction, recentBlockHash Hash, opts ...Tr
 		}
 	}
 
-	programIDs := make(PublicKeySlice, 0)
-	accounts := []*AccountMeta{}
+	totalAccounts := 0
+	for _, instruction := range instructions {
+		totalAccounts += len(instruction.Accounts())
+	}
+	programIDs := make(PublicKeySlice, 0, len(instructions))
+	accounts := make([]*AccountMeta, 0, totalAccounts+len(instructions))
 	for _, instruction := range instructions {
 		accounts = append(accounts, instruction.Accounts()...)
 		programIDs.UniqueAppend(instruction.ProgramID())
@@ -298,12 +313,26 @@ func NewTransaction(instructions []Instruction, recentBlockHash Hash, opts ...Tr
 	}
 
 	// Sort. Prioritizing first by signer, then by writable
-	sort.SliceStable(accounts, func(i, j int) bool {
-		return accounts[i].less(accounts[j])
+	slices.SortStableFunc(accounts, func(a, b *AccountMeta) int {
+		if a.less(b) {
+			return -1
+		}
+		if b.less(a) {
+			return 1
+		}
+		return 0
 	})
 
-	uniqAccountsMap := map[PublicKey]uint64{}
-	uniqAccounts := []*AccountMeta{}
+	// Hint the map only above a threshold: for small txs, an empty map is
+	// cheaper than a single pre-allocated bucket (~640B for PublicKey keys).
+	// For larger txs, the hint avoids several bucket-grow operations.
+	var uniqAccountsMap map[PublicKey]uint64
+	if len(accounts) > 16 {
+		uniqAccountsMap = make(map[PublicKey]uint64, len(accounts))
+	} else {
+		uniqAccountsMap = map[PublicKey]uint64{}
+	}
+	uniqAccounts := make([]*AccountMeta, 0, len(accounts))
 	for _, acc := range accounts {
 		if index, found := uniqAccountsMap[acc.PublicKey]; found {
 			uniqAccounts[index].IsWritable = uniqAccounts[index].IsWritable || acc.IsWritable
@@ -412,7 +441,20 @@ func NewTransaction(instructions []Instruction, recentBlockHash Hash, opts ...Tr
 	if len(lookupsMap) > 0 {
 		lookups := make([]MessageAddressTableLookup, 0, len(lookupsMap))
 
-		for tablePubKey, l := range lookupsMap {
+		sortedLookupKeys := make(PublicKeySlice, 0, len(lookupsMap))
+		var totalWritable, totalReadonly int
+		for k, l := range lookupsMap {
+			sortedLookupKeys = append(sortedLookupKeys, k)
+			totalWritable += len(l.Writable)
+			totalReadonly += len(l.Readonly)
+		}
+		lookupsWritableKeys = make([]PublicKey, 0, totalWritable)
+		lookupsReadOnlyKeys = make([]PublicKey, 0, totalReadonly)
+		slices.SortFunc(sortedLookupKeys, func(a, b PublicKey) int {
+			return bytes.Compare(a[:], b[:])
+		})
+		for _, tablePubKey := range sortedLookupKeys {
+			l := lookupsMap[tablePubKey]
 			lookupsWritableKeys = append(lookupsWritableKeys, l.Writable...)
 			lookupsReadOnlyKeys = append(lookupsReadOnlyKeys, l.Readonly...)
 
@@ -426,23 +468,23 @@ func NewTransaction(instructions []Instruction, recentBlockHash Hash, opts ...Tr
 		// prevent error created in ResolveLookups
 		err := message.SetAddressTables(options.addressTables)
 		if err != nil {
-			return nil, fmt.Errorf("SetAddressTables: %s", err)
+			return nil, fmt.Errorf("SetAddressTables: %w", err)
 		}
 		message.SetAddressTableLookups(lookups)
 	}
 
 	var idx uint16
-	accountKeyIndex := make(map[string]uint16, len(message.AccountKeys)+len(lookupsWritableKeys)+len(lookupsReadOnlyKeys))
+	accountKeyIndex := make(map[PublicKey]uint16, len(message.AccountKeys)+len(lookupsWritableKeys)+len(lookupsReadOnlyKeys))
 	for _, acc := range message.AccountKeys {
-		accountKeyIndex[acc.String()] = idx
+		accountKeyIndex[acc] = idx
 		idx++
 	}
 	for _, acc := range lookupsWritableKeys {
-		accountKeyIndex[acc.String()] = idx
+		accountKeyIndex[acc] = idx
 		idx++
 	}
 	for _, acc := range lookupsReadOnlyKeys {
-		accountKeyIndex[acc.String()] = idx
+		accountKeyIndex[acc] = idx
 		idx++
 	}
 
@@ -454,18 +496,19 @@ func NewTransaction(instructions []Instruction, recentBlockHash Hash, opts ...Tr
 		)
 	}
 
+	message.Instructions = make([]CompiledInstruction, 0, len(instructions))
 	for txIdx, instruction := range instructions {
 		accounts = instruction.Accounts()
 		accountIndex := make([]uint16, len(accounts))
 		for idx, acc := range accounts {
-			accountIndex[idx] = accountKeyIndex[acc.PublicKey.String()]
+			accountIndex[idx] = accountKeyIndex[acc.PublicKey]
 		}
 		data, err := instruction.Data()
 		if err != nil {
 			return nil, fmt.Errorf("unable to encode instructions [%d]: %w", txIdx, err)
 		}
 		message.Instructions = append(message.Instructions, CompiledInstruction{
-			ProgramIDIndex: accountKeyIndex[instruction.ProgramID().String()],
+			ProgramIDIndex: accountKeyIndex[instruction.ProgramID()],
 			Accounts:       accountIndex,
 			Data:           data,
 		})
@@ -484,16 +527,25 @@ func (tx *Transaction) MarshalBinary() ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode tx.Message to binary: %w", err)
 	}
 
-	var signatureCount []byte
-	bin.EncodeCompactU16Length(&signatureCount, len(tx.Signatures))
-	output := make([]byte, 0, len(signatureCount)+len(signatureCount)*64+len(messageContent))
-	output = append(output, signatureCount...)
-	for _, sig := range tx.Signatures {
-		output = append(output, sig[:]...)
+	signatures := tx.Signatures
+	if missing := int(tx.Message.Header.NumRequiredSignatures) - len(signatures); missing > 0 {
+		// append zero-valued dummy signatures to the transaction, without them
+		// the serialized transaction will be invalid.
+		// reference: https://github.com/solana-labs/solana-web3.js/blob/4e9988cfc561f3ed11f4c5016a29090a61d129a8/src/transaction/versioned.ts#L36
+		signatures = append(signatures, make([]Signature, missing)...)
 	}
-	output = append(output, messageContent...)
 
-	return output, nil
+	var signaturesCountBytes []byte
+	bin.EncodeCompactU16Length(&signaturesCountBytes, len(signatures))
+
+	binaryTx := make([]byte, 0, len(signaturesCountBytes)+len(signatures)*64+len(messageContent))
+	binaryTx = append(binaryTx, signaturesCountBytes...)
+	for _, sig := range signatures {
+		binaryTx = append(binaryTx, sig[:]...)
+	}
+
+	binaryTx = append(binaryTx, messageContent...)
+	return binaryTx, nil
 }
 
 func (tx Transaction) MarshalWithEncoder(encoder *bin.Encoder) error {
@@ -510,15 +562,12 @@ func (tx *Transaction) UnmarshalWithDecoder(decoder *bin.Decoder) (err error) {
 		if err != nil {
 			return fmt.Errorf("unable to read numSignatures: %w", err)
 		}
-		if numSignatures < 0 {
-			return fmt.Errorf("numSignatures is negative")
-		}
 		if numSignatures > decoder.Remaining()/64 {
 			return fmt.Errorf("numSignatures %d is too large for remaining bytes %d", numSignatures, decoder.Remaining())
 		}
 
 		tx.Signatures = make([]Signature, numSignatures)
-		for i := 0; i < numSignatures; i++ {
+		for i := range numSignatures {
 			_, err := decoder.Read(tx.Signatures[i][:])
 			if err != nil {
 				return fmt.Errorf("unable to read tx.Signatures[%d]: %w", i, err)
@@ -637,7 +686,6 @@ func (tx *Transaction) EncodeToTree(parent treeout.Branches) {
 						message.Child(spew.Sdump(decodedInstruction))
 					}
 				} else {
-					// TODO: log error?
 					message.Child(fmt.Sprintf(text.RedBG("cannot decode instruction for %s program: %s"), progKey, err)).
 						Child(text.IndigoBG("Program") + ": " + text.Bold("<unknown>") + " " + text.ColorizeBG(progKey.String())).
 						//
@@ -767,40 +815,17 @@ func countWriteableAccounts(tx *Transaction) (count int) {
 		}
 		return count
 	}
-	numStatisKeys := len(tx.Message.AccountKeys)
-	statisKeys := tx.Message.AccountKeys
+	numStaticKeys := len(tx.Message.AccountKeys)
 	h := tx.Message.Header
-	for _, key := range statisKeys {
-		accIndex, ok := getStaticAccountIndex(tx, key)
-		if !ok {
-			continue
-		}
-		index := int(accIndex)
-		is := false
-		if index >= int(h.NumRequiredSignatures) {
-			// unsignedAccountIndex < numWritableUnsignedAccounts
-			is = index-int(h.NumRequiredSignatures) < (numStatisKeys-int(h.NumRequiredSignatures))-int(h.NumReadonlyUnsignedAccounts)
-		} else {
-			is = index < int(h.NumRequiredSignatures-h.NumReadonlySignedAccounts)
-		}
-		if is {
-			count++
-		}
-	}
+	numSig := int(h.NumRequiredSignatures)
+	numWritableSigned := max(numSig-int(h.NumReadonlySignedAccounts), 0)
+	numWritableUnsigned := max(numStaticKeys-numSig-int(h.NumReadonlyUnsignedAccounts), 0)
+	count += numWritableSigned + numWritableUnsigned
 	if tx.Message.IsResolved() {
 		return count
 	}
 	count += tx.Message.NumWritableLookups()
 	return count
-}
-
-func getStaticAccountIndex(tx *Transaction, key PublicKey) (int, bool) {
-	for idx, a := range tx.Message.AccountKeys {
-		if a.Equals(key) {
-			return (idx), true
-		}
-	}
-	return -1, false
 }
 
 func (tx *Transaction) IsVote() bool {

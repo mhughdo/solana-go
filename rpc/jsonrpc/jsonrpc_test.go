@@ -2,15 +2,15 @@ package jsonrpc
 
 import (
 	"context"
-	stdjson "encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strconv"
 	"testing"
 
+	stdjson "github.com/goccy/go-json"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 )
@@ -32,12 +32,12 @@ var httpServer *httptest.Server
 // start the testhttp server and stop it when tests are finished
 func TestMain(m *testing.M) {
 	httpServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		data, _ := ioutil.ReadAll(r.Body)
+		data, _ := io.ReadAll(r.Body)
 		defer r.Body.Close()
 		// put request and body to channel for the client to investigate them
 		requestChan <- &RequestData{r, string(data)}
 
-		fmt.Fprintf(w, responseBody)
+		fmt.Fprint(w, responseBody)
 	}))
 	defer httpServer.Close()
 
@@ -55,6 +55,59 @@ func TestSimpleRpcCallHeaderCorrect(t *testing.T) {
 	Expect(req.Method).To(Equal("POST"))
 	Expect(req.Header.Get("Content-Type")).To(Equal("application/json"))
 	Expect(req.Header.Get("Accept")).To(Equal("application/json"))
+}
+
+func TestCustomHeader_PreservesMultiValue(t *testing.T) {
+	RegisterTestingT(t)
+
+	hdr := http.Header{}
+	hdr.Add("X-Forwarded-For", "1.1.1.1")
+	hdr.Add("X-Forwarded-For", "2.2.2.2")
+	hdr.Add("Cookie", "a=1")
+	hdr.Add("Cookie", "b=2")
+	hdr.Set("Authorization", "Bearer t")
+
+	rpcClient := NewClientWithOpts(httpServer.URL, &RPCClientOpts{
+		CustomHeader: hdr,
+	})
+	rpcClient.Call(context.Background(), "noop")
+
+	req := (<-requestChan).request
+
+	Expect(req.Header.Values("X-Forwarded-For")).To(Equal([]string{"1.1.1.1", "2.2.2.2"}))
+	Expect(req.Header.Values("Cookie")).To(Equal([]string{"a=1", "b=2"}))
+	Expect(req.Header.Get("Authorization")).To(Equal("Bearer t"))
+}
+
+func TestCustomHeader_TakesPrecedenceOverCustomHeaders(t *testing.T) {
+	RegisterTestingT(t)
+
+	rpcClient := NewClientWithOpts(httpServer.URL, &RPCClientOpts{
+		CustomHeaders: map[string]string{
+			"X-Test": "from-map",
+		},
+		CustomHeader: http.Header{
+			"X-Test": []string{"from-header-a", "from-header-b"},
+		},
+	})
+	rpcClient.Call(context.Background(), "noop")
+
+	req := (<-requestChan).request
+	Expect(req.Header.Values("X-Test")).To(Equal([]string{"from-header-a", "from-header-b"}))
+}
+
+func TestCustomHeaders_StillWorks(t *testing.T) {
+	RegisterTestingT(t)
+
+	rpcClient := NewClientWithOpts(httpServer.URL, &RPCClientOpts{
+		CustomHeaders: map[string]string{
+			"X-Backcompat": "yes",
+		},
+	})
+	rpcClient.Call(context.Background(), "noop")
+
+	req := (<-requestChan).request
+	Expect(req.Header.Get("X-Backcompat")).To(Equal("yes"))
 }
 
 // test if the structure of an rpc request is built correctly by validating the data that arrived on the test server
@@ -84,7 +137,7 @@ func TestRpcClient_Call(t *testing.T) {
 	rpcClient.Call(context.Background(), "nullParams", nil, nil)
 	Expect((<-requestChan).body).To(Equal(`{"method":"nullParams","params":[null,null],"id":1,"jsonrpc":"2.0"}`))
 
-	rpcClient.Call(context.Background(), "emptyParams", []interface{}{})
+	rpcClient.Call(context.Background(), "emptyParams", []any{})
 	Expect((<-requestChan).body).To(Equal(`{"method":"emptyParams","params":[],"id":1,"jsonrpc":"2.0"}`))
 
 	rpcClient.Call(context.Background(), "emptyAnyParams", []string{})
@@ -139,10 +192,10 @@ func TestRpcClient_Call(t *testing.T) {
 	rpcClient.Call(context.Background(), "multipleStructs", person, &drink)
 	Expect((<-requestChan).body).To(Equal(`{"method":"multipleStructs","params":[{"name":"Alex","age":35,"country":"Germany"},{"name":"Cuba Libre","ingredients":["rum","cola"]}],"id":1,"jsonrpc":"2.0"}`))
 
-	rpcClient.Call(context.Background(), "singleStructInArray", []interface{}{person})
+	rpcClient.Call(context.Background(), "singleStructInArray", []any{person})
 	Expect((<-requestChan).body).To(Equal(`{"method":"singleStructInArray","params":[{"name":"Alex","age":35,"country":"Germany"}],"id":1,"jsonrpc":"2.0"}`))
 
-	rpcClient.Call(context.Background(), "namedParameters", map[string]interface{}{
+	rpcClient.Call(context.Background(), "namedParameters", map[string]any{
 		"name": "Alex",
 		"age":  35,
 	})
@@ -212,7 +265,7 @@ func TestRpcClient_CallBatch(t *testing.T) {
 	requests := RPCRequests{
 		NewRequest("nullParam", nil),
 		NewRequest("nullParams", nil, nil),
-		NewRequest("emptyParams", []interface{}{}),
+		NewRequest("emptyParams", []any{}),
 		NewRequest("emptyAnyParams", []string{}),
 		NewRequest("emptyObject", struct{}{}),
 		NewRequest("emptyObjectList", []struct{}{{}, {}}),
@@ -229,8 +282,8 @@ func TestRpcClient_CallBatch(t *testing.T) {
 		NewRequest("singleStruct", person),
 		NewRequest("singlePointerToStruct", &person),
 		NewRequest("multipleStructs", person, &drink),
-		NewRequest("singleStructInArray", []interface{}{person}),
-		NewRequest("namedParameters", map[string]interface{}{
+		NewRequest("singleStructInArray", []any{person}),
+		NewRequest("namedParameters", map[string]any{
 			"name": "Alex",
 			"age":  35,
 		}),
@@ -602,13 +655,13 @@ func TestRpcBatchJsonResponseStruct(t *testing.T) {
 
 	// result must be wrapped in array on batch request
 	responseBody = `{"result": null}`
-	res, err = rpcClient.CallBatch(context.Background(), RPCRequests{
+	_, err = rpcClient.CallBatch(context.Background(), RPCRequests{
 		NewRequest("something", 1, 2, 3),
 	})
 	<-requestChan
 	Expect(err.Error()).NotTo(BeNil())
 
-	// result ok since in arrary
+	// result ok since in array
 	responseBody = `[{"result": null}]`
 	res, err = rpcClient.CallBatch(context.Background(), RPCRequests{
 		NewRequest("something", 1, 2, 3),

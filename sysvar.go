@@ -16,12 +16,18 @@ package solana
 
 // See more here: https://github.com/solana-labs/solana/blob/master/docs/src/developing/runtime-facilities/sysvars.md
 
-// From https://github.com/solana-labs/solana/blob/94ab0eb49f1bce18d0a157dfe7a2bb1fb39dbe2c/docs/src/developing/runtime-facilities/sysvars.md
+// From https://github.com/anza-xyz/solana-sdk/blob/master/sdk-ids/src/lib.rs
 var (
+	// Owner address for sysvar accounts.
+	SysVarPubkey = MustPublicKeyFromBase58("Sysvar1111111111111111111111111111111111111")
+
 	// The Clock sysvar contains data on cluster time,
 	// including the current slot, epoch, and estimated wall-clock Unix timestamp.
 	// It is updated every slot.
 	SysVarClockPubkey = MustPublicKeyFromBase58("SysvarC1ock11111111111111111111111111111111")
+
+	// The EpochRewards sysvar contains epoch rewards distribution data.
+	SysVarEpochRewardsPubkey = MustPublicKeyFromBase58("SysvarEpochRewards1111111111111111111111111")
 
 	// The EpochSchedule sysvar contains epoch scheduling constants that are set in genesis,
 	// and enables calculating the number of slots in a given epoch,
@@ -37,6 +43,9 @@ var (
 	// This allows program instructions to reference other instructions in the same transaction.
 	SysVarInstructionsPubkey = MustPublicKeyFromBase58("Sysvar1nstructions1111111111111111111111111")
 
+	// The LastRestartSlot sysvar contains the last restart slot.
+	SysVarLastRestartSlotPubkey = MustPublicKeyFromBase58("SysvarLastRestartS1ot1111111111111111111111")
+
 	// The RecentBlockhashes sysvar contains the active recent blockhashes as well as their associated fee calculators.
 	// It is updated every slot.
 	// Entries are ordered by descending block height,
@@ -49,7 +58,7 @@ var (
 	// The Rent burn percentage is modified by manual feature activation.
 	SysVarRentPubkey = MustPublicKeyFromBase58("SysvarRent111111111111111111111111111111111")
 
-	//
+	// The Rewards sysvar.
 	SysVarRewardsPubkey = MustPublicKeyFromBase58("SysvarRewards111111111111111111111111111111")
 
 	// The SlotHashes sysvar contains the most recent hashes of the slot's parent banks.

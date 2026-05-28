@@ -43,9 +43,6 @@ type GetSignaturesForAddressOpts struct {
 // GetSignaturesForAddress returns confirmed signatures for transactions
 // involving an address backwards in time from the provided signature
 // or most recent confirmed block.
-//
-// NEW: This method is only available in solana-core v1.7 or newer.
-// Please use `getConfirmedSignaturesForAddress2` for solana-core v1.6
 func (cl *Client) GetSignaturesForAddress(
 	ctx context.Context,
 	account solana.PublicKey,
@@ -60,15 +57,12 @@ func (cl *Client) GetSignaturesForAddress(
 // GetSignaturesForAddressWithOpts returns confirmed signatures for transactions
 // involving an address backwards in time from the provided signature
 // or most recent confirmed block.
-//
-// NEW: This method is only available in solana-core v1.7 or newer.
-// Please use `getConfirmedSignaturesForAddress2` for solana-core v1.6
 func (cl *Client) GetSignaturesForAddressWithOpts(
 	ctx context.Context,
 	account solana.PublicKey,
 	opts *GetSignaturesForAddressOpts,
 ) (out []*TransactionSignature, err error) {
-	params := []interface{}{account}
+	params := []any{account}
 	if opts != nil {
 		obj := M{}
 		if opts.Limit != nil {

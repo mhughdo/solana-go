@@ -29,7 +29,7 @@ func (cl *Client) SlotSubscribe() (*SlotSubscription, error) {
 		nil,
 		"slotSubscribe",
 		"slotUnsubscribe",
-		func(msg []byte) (interface{}, error) {
+		func(msg []byte) (any, error) {
 			var res SlotResult
 			err := decodeResponseFromMessage(msg, &res)
 			return &res, err
@@ -63,19 +63,6 @@ func (sw *SlotSubscription) Recv(ctx context.Context) (*SlotResult, error) {
 
 func (sw *SlotSubscription) Err() <-chan error {
 	return sw.sub.err
-}
-
-func (sw *SlotSubscription) Response() <-chan *SlotResult {
-	typedChan := make(chan *SlotResult, 1)
-	go func(ch chan *SlotResult) {
-		// TODO: will this subscription yield more than one result?
-		d, ok := <-sw.sub.stream
-		if !ok {
-			return
-		}
-		ch <- d.(*SlotResult)
-	}(typedChan)
-	return typedChan
 }
 
 func (sw *SlotSubscription) Unsubscribe() {

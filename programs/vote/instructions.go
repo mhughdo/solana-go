@@ -28,15 +28,15 @@ import (
 
 var ProgramID solana.PublicKey = solana.VoteProgramID
 
-func SetProgramID(pubkey solana.PublicKey) {
+func SetProgramID(pubkey solana.PublicKey) error {
 	ProgramID = pubkey
-	solana.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
+	return solana.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
 }
 
 const ProgramName = "Vote"
 
 func init() {
-	solana.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
+	solana.MustRegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
 }
 
 type Instruction struct {
@@ -54,18 +54,26 @@ func (inst *Instruction) EncodeToTree(parent treeout.Branches) {
 var InstructionImplDef = bin.NewVariantDefinition(
 	bin.Uint32TypeIDEncoding,
 	[]bin.VariantType{
-		{
-			"InitializeAccount", (*InitializeAccount)(nil),
-		},
-		{
-			"Authorize", (*Authorize)(nil),
-		},
-		{
-			"Vote", (*Vote)(nil),
-		},
-		{
-			"Withdraw", (*Withdraw)(nil),
-		},
+		{Name: "InitializeAccount", Type: (*InitializeAccount)(nil)},
+		{Name: "Authorize", Type: (*Authorize)(nil)},
+		{Name: "Vote", Type: (*Vote)(nil)},
+		{Name: "Withdraw", Type: (*Withdraw)(nil)},
+		{Name: "UpdateValidatorIdentity", Type: (*UpdateValidatorIdentity)(nil)},
+		{Name: "UpdateCommission", Type: (*UpdateCommission)(nil)},
+		{Name: "VoteSwitch", Type: (*VoteSwitch)(nil)},
+		{Name: "AuthorizeChecked", Type: (*AuthorizeChecked)(nil)},
+		{Name: "UpdateVoteState", Type: (*UpdateVoteState)(nil)},
+		{Name: "UpdateVoteStateSwitch", Type: (*UpdateVoteStateSwitch)(nil)},
+		{Name: "AuthorizeWithSeed", Type: (*AuthorizeWithSeed)(nil)},
+		{Name: "AuthorizeCheckedWithSeed", Type: (*AuthorizeCheckedWithSeed)(nil)},
+		{Name: "CompactUpdateVoteState", Type: (*CompactUpdateVoteState)(nil)},
+		{Name: "CompactUpdateVoteStateSwitch", Type: (*CompactUpdateVoteStateSwitch)(nil)},
+		{Name: "TowerSync", Type: (*TowerSync)(nil)},
+		{Name: "TowerSyncSwitch", Type: (*TowerSyncSwitch)(nil)},
+		{Name: "InitializeAccountV2", Type: (*InitializeAccountV2)(nil)},
+		{Name: "UpdateCommissionCollector", Type: (*UpdateCommissionCollector)(nil)},
+		{Name: "UpdateCommissionBps", Type: (*UpdateCommissionBps)(nil)},
+		{Name: "DepositDelegatorRewards", Type: (*DepositDelegatorRewards)(nil)},
 	},
 )
 
@@ -101,7 +109,7 @@ func (inst Instruction) MarshalWithEncoder(encoder *bin.Encoder) error {
 	return encoder.Encode(inst.Impl)
 }
 
-func registryDecodeInstruction(accounts []*solana.AccountMeta, data []byte) (interface{}, error) {
+func registryDecodeInstruction(accounts []*solana.AccountMeta, data []byte) (any, error) {
 	inst, err := DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, err

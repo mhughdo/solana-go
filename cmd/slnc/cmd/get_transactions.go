@@ -23,7 +23,6 @@ import (
 	"os"
 
 	"github.com/gagliardetto/solana-go"
-	_ "github.com/gagliardetto/solana-go/programs/serum"
 	_ "github.com/gagliardetto/solana-go/programs/system"
 	_ "github.com/gagliardetto/solana-go/programs/token"
 	_ "github.com/gagliardetto/solana-go/programs/tokenregistry"
@@ -46,14 +45,12 @@ var getTransactionsCmd = &cobra.Command{
 			return fmt.Errorf("invalid account address %q: %w", address, err)
 		}
 
-		limit := uint64(1)
-		csList, err := client.GetConfirmedSignaturesForAddress2(ctx, pubKey, &rpc.GetConfirmedSignaturesForAddress2Opts{
+		limit := 1
+		csList, err := client.GetSignaturesForAddressWithOpts(ctx, pubKey, &rpc.GetSignaturesForAddressOpts{
 			Limit: &limit,
-			// Before: "",
-			// Until:  "",
 		})
 		if err != nil {
-			return fmt.Errorf("unable to retrieve confirmed transaction signatures for account: %w", err)
+			return fmt.Errorf("unable to retrieve transaction signatures for account: %w", err)
 		}
 
 		for _, cs := range csList {
@@ -66,16 +63,21 @@ var getTransactionsCmd = &cobra.Command{
 			text.EncoderColorGreen.Print("Memo: ")
 			fmt.Println(cs.Memo)
 
-			ct, err := client.GetConfirmedTransaction(ctx, cs.Signature)
+			ct, err := client.GetTransaction(ctx, cs.Signature, nil)
 			if err != nil {
-				return fmt.Errorf("unable to get confirmed transaction with signature %q: %w", cs.Signature, err)
+				return fmt.Errorf("unable to get transaction with signature %q: %w", cs.Signature, err)
 			}
 
 			if ct.Meta.Err != nil {
-				return fmt.Errorf("unable to get confirmed transaction with signature %q: %s", cs.Signature, ct.Meta.Err)
+				return fmt.Errorf("unable to get transaction with signature %q: %s", cs.Signature, ct.Meta.Err)
 			}
 
-			_, err = ct.MustGetTransaction().EncodeTree(text.NewTreeEncoder(os.Stdout, text.Bold("INSTRUCTIONS")))
+			tx, err := ct.Transaction.GetTransaction()
+			if err != nil {
+				return fmt.Errorf("unable to decode transaction with signature %q: %w", cs.Signature, err)
+			}
+
+			_, err = tx.EncodeTree(text.NewTreeEncoder(os.Stdout, text.Bold("INSTRUCTIONS")))
 			if err != nil {
 				panic(err)
 			}

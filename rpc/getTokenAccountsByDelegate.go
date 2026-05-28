@@ -37,6 +37,9 @@ type GetTokenAccountsOpts struct {
 	Encoding solana.EncodingType `json:"encoding,omitempty"`
 
 	DataSlice *DataSlice `json:"dataSlice,omitempty"`
+
+	// The minimum slot that the request can be evaluated at.
+	MinContextSlot *uint64 `json:"minContextSlot,omitempty"`
 }
 
 // GetTokenAccountsByDelegate returns all SPL Token accounts by approved Delegate.
@@ -46,7 +49,7 @@ func (cl *Client) GetTokenAccountsByDelegate(
 	conf *GetTokenAccountsConfig,
 	opts *GetTokenAccountsOpts,
 ) (out *GetTokenAccountsResult, err error) {
-	params := []interface{}{account}
+	params := []any{account}
 	if conf == nil {
 		return nil, errors.New("conf is nil")
 	}
@@ -86,6 +89,9 @@ func (cl *Client) GetTokenAccountsByDelegate(
 				if opts.Encoding == solana.EncodingJSONParsed {
 					return nil, errors.New("cannot use dataSlice with EncodingJSONParsed")
 				}
+			}
+			if opts.MinContextSlot != nil {
+				optsObj["minContextSlot"] = *opts.MinContextSlot
 			}
 			if len(optsObj) > 0 {
 				params = append(params, optsObj)

@@ -49,7 +49,7 @@ var requestCmd = &cobra.Command{
 			context.Background(),
 			address,
 			uint64(lamport),
-			rpc.CommitmentMax,
+			rpc.CommitmentFinalized,
 		)
 		if err != nil {
 			return fmt.Errorf("airdrop request failed: %w", err)

@@ -28,7 +28,7 @@ func (cl *Client) GetTokenAccountsByOwner(
 	conf *GetTokenAccountsConfig,
 	opts *GetTokenAccountsOpts,
 ) (out *GetTokenAccountsResult, err error) {
-	params := []interface{}{owner}
+	params := []any{owner}
 	if conf == nil {
 		return nil, errors.New("conf is nil")
 	}
@@ -68,6 +68,9 @@ func (cl *Client) GetTokenAccountsByOwner(
 				if opts.Encoding == solana.EncodingJSONParsed {
 					return nil, errors.New("cannot use dataSlice with EncodingJSONParsed")
 				}
+			}
+			if opts.MinContextSlot != nil {
+				optsObj["minContextSlot"] = *opts.MinContextSlot
 			}
 			if len(optsObj) > 0 {
 				params = append(params, optsObj)

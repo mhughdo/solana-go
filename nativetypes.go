@@ -18,14 +18,15 @@
 package solana
 
 import (
-	"crypto/ed25519"
 	"encoding/base64"
 	"fmt"
 	"io"
 
+	voied25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
+
 	bin "github.com/gagliardetto/binary"
+	"github.com/gagliardetto/solana-go/base58"
 	"github.com/mostynb/zstdpool-freelist"
-	"github.com/mr-tron/base58"
 )
 
 type Padding []byte
@@ -54,8 +55,8 @@ func HashFromBytes(in []byte) Hash {
 
 // MarshalText implements encoding.TextMarshaler.
 func (ha Hash) MarshalText() ([]byte, error) {
-	s := base58.Encode(ha[:])
-	return []byte(s), nil
+	buf := make([]byte, 0, base58.EncodedMaxLen32)
+	return base58.AppendEncode32(buf, (*[32]byte)(&ha)), nil
 }
 
 // UnmarshalText implements encoding.TextUnmarshaler.
@@ -69,7 +70,11 @@ func (ha *Hash) UnmarshalText(data []byte) (err error) {
 }
 
 func (ha Hash) MarshalJSON() ([]byte, error) {
-	return json.Marshal(base58.Encode(ha[:]))
+	buf := make([]byte, 0, base58.EncodedMaxLen32+2)
+	buf = append(buf, '"')
+	buf = base58.AppendEncode32(buf, (*[32]byte)(&ha))
+	buf = append(buf, '"')
+	return buf, nil
 }
 
 func (ha *Hash) UnmarshalJSON(data []byte) (err error) {
@@ -114,16 +119,9 @@ func (sig Signature) Equals(pb Signature) bool {
 
 // SignatureFromBase58 decodes a base58 string into a Signature.
 func SignatureFromBase58(in string) (out Signature, err error) {
-	val, err := base58.Decode(in)
-	if err != nil {
-		return
+	if err = base58.Decode64(in, (*[64]byte)(&out)); err != nil {
+		return out, fmt.Errorf("decode: %w", err)
 	}
-
-	if len(val) != SignatureLength {
-		err = fmt.Errorf("invalid length, expected 64, got %d", len(val))
-		return
-	}
-	copy(out[:], val)
 	return
 }
 
@@ -154,8 +152,8 @@ func SignatureFromBytes(in []byte) (out Signature) {
 }
 
 func (p Signature) MarshalText() ([]byte, error) {
-	s := base58.Encode(p[:])
-	return []byte(s), nil
+	buf := make([]byte, 0, base58.EncodedMaxLen64)
+	return base58.AppendEncode64(buf, (*[64]byte)(&p)), nil
 }
 
 func (p *Signature) UnmarshalText(data []byte) (err error) {
@@ -168,7 +166,11 @@ func (p *Signature) UnmarshalText(data []byte) (err error) {
 }
 
 func (p Signature) MarshalJSON() ([]byte, error) {
-	return json.Marshal(base58.Encode(p[:]))
+	buf := make([]byte, 0, base58.EncodedMaxLen64+2)
+	buf = append(buf, '"')
+	buf = base58.AppendEncode64(buf, (*[64]byte)(&p))
+	buf = append(buf, '"')
+	return buf, nil
 }
 
 func (p *Signature) UnmarshalJSON(data []byte) (err error) {
@@ -178,24 +180,13 @@ func (p *Signature) UnmarshalJSON(data []byte) (err error) {
 		return
 	}
 
-	dat, err := base58.Decode(s)
-	if err != nil {
-		return err
-	}
-
-	if len(dat) != SignatureLength {
-		return fmt.Errorf("invalid length for Signature, expected 64, got %d", len(dat))
-	}
-
-	target := Signature{}
-	copy(target[:], dat)
-	*p = target
+	*p, err = SignatureFromBase58(s)
 	return
 }
 
 // Verify checks that the signature is valid for the given public key and message.
 func (s Signature) Verify(pubkey PublicKey, msg []byte) bool {
-	return ed25519.Verify(pubkey[:], msg, s[:])
+	return voied25519.VerifyWithOptions(pubkey[:], msg, s[:], verifyOptsStdLib)
 }
 
 func (p Signature) String() string {
@@ -356,7 +347,7 @@ type Data struct {
 
 func (t Data) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
-		[]interface{}{
+		[]any{
 			t.String(),
 			t.Encoding,
 		})
@@ -428,8 +419,7 @@ func (t Data) String() string {
 	case EncodingBase64Zstd:
 		enc, err := zstdEncoderPool.Get(nil)
 		if err != nil {
-			// TODO: remove panic?
-			panic(err)
+			return fmt.Sprintf("<zstd encoder error: %v>", err)
 		}
 		defer zstdEncoderPool.Put(enc)
 		return base64.StdEncoding.EncodeToString(enc.EncodeAll(t.Content, nil))

@@ -6,10 +6,7 @@ import (
 	"github.com/gagliardetto/solana-go"
 )
 
-// Returns whether a blockhash is still valid or not
-//
-// **NEW: This method is only available in solana-core v1.9 or newer. Please use
-// `getFeeCalculatorForBlockhash` for solana-core v1.8**
+// IsBlockhashValid returns whether a blockhash is still valid or not.
 func (cl *Client) IsBlockhashValid(
 	ctx context.Context,
 	// Blockhash to be queried. Required.
@@ -18,7 +15,7 @@ func (cl *Client) IsBlockhashValid(
 	// Commitment requirement. Optional.
 	commitment CommitmentType,
 ) (out *IsValidBlockhashResult, err error) {
-	params := []interface{}{blockHash}
+	params := []any{blockHash}
 	if commitment != "" {
 		params = append(params, M{"commitment": string(commitment)})
 	}

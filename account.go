@@ -18,6 +18,7 @@
 package solana
 
 import (
+	"bytes"
 	"fmt"
 )
 
@@ -96,7 +97,8 @@ func (a AccountMeta) less(act *AccountMeta) bool {
 	if a.IsWritable != act.IsWritable {
 		return a.IsWritable
 	}
-	return false
+
+	return bytes.Compare(a.PublicKey[:], act.PublicKey[:]) < 0
 }
 
 type AccountMetaSlice []*AccountMeta

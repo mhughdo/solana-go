@@ -24,10 +24,14 @@ import (
 	treeout "github.com/gagliardetto/treeout"
 )
 
+// CreateIdempotent creates an associated token account for the given wallet
+// address and token mint, if it doesn't already exist.
+// Returns an error if the account exists but with a different owner.
 type CreateIdempotent struct {
-	Payer  solana.PublicKey `bin:"-" borsh_skip:"true"`
-	Wallet solana.PublicKey `bin:"-" borsh_skip:"true"`
-	Mint   solana.PublicKey `bin:"-" borsh_skip:"true"`
+	Payer        solana.PublicKey `bin:"-" borsh_skip:"true"`
+	Wallet       solana.PublicKey `bin:"-" borsh_skip:"true"`
+	Mint         solana.PublicKey `bin:"-" borsh_skip:"true"`
+	TokenProgram solana.PublicKey `bin:"-" borsh_skip:"true"`
 
 	// [0] = [WRITE, SIGNER] Payer
 	// ··········· Funding account
@@ -46,16 +50,14 @@ type CreateIdempotent struct {
 	//
 	// [5] = [] TokenProgram
 	// ··········· SPL token program ID
-	//
-	// [6] = [] SysVarRent
-	// ··········· SysVarRentPubkey
 	solana.AccountMetaSlice `bin:"-" borsh_skip:"true"`
 }
 
-// NewCreateInstructionBuilder creates a new `Create` instruction builder.
+// NewCreateIdempotentInstructionBuilder creates a new `CreateIdempotent` instruction builder.
 func NewCreateIdempotentInstructionBuilder() *CreateIdempotent {
-	nd := &CreateIdempotent{}
-	return nd
+	return &CreateIdempotent{
+		TokenProgram: solana.TokenProgramID,
+	}
 }
 
 func (inst *CreateIdempotent) SetPayer(payer solana.PublicKey) *CreateIdempotent {
@@ -73,12 +75,32 @@ func (inst *CreateIdempotent) SetMint(mint solana.PublicKey) *CreateIdempotent {
 	return inst
 }
 
-func (inst CreateIdempotent) Build() *Instruction {
+func (inst *CreateIdempotent) SetTokenProgram(tokenProgram solana.PublicKey) *CreateIdempotent {
+	inst.TokenProgram = tokenProgram
+	return inst
+}
 
-	// Find the associatedTokenAddress;
-	associatedTokenAddress, _, _ := solana.FindAssociatedTokenAddress(
+func (inst *CreateIdempotent) SetAccounts(accounts []*solana.AccountMeta) error {
+	inst.AccountMetaSlice = accounts
+	if len(accounts) < 6 {
+		return fmt.Errorf("insufficient accounts, CreateIdempotent requires at-least 6 accounts not %d", len(accounts))
+	}
+	inst.Payer = accounts[0].PublicKey
+	inst.Wallet = accounts[2].PublicKey
+	inst.Mint = accounts[3].PublicKey
+	inst.TokenProgram = accounts[5].PublicKey
+	return nil
+}
+
+func (inst CreateIdempotent) Build() *Instruction {
+	tokenProgram := inst.TokenProgram
+	if tokenProgram.IsZero() {
+		tokenProgram = solana.TokenProgramID
+	}
+	associatedTokenAddress, _, _ := solana.FindAssociatedTokenAddressWithProgram(
 		inst.Wallet,
 		inst.Mint,
+		tokenProgram,
 	)
 
 	keys := []*solana.AccountMeta{
@@ -108,12 +130,7 @@ func (inst CreateIdempotent) Build() *Instruction {
 			IsWritable: false,
 		},
 		{
-			PublicKey:  solana.TokenProgramID,
-			IsSigner:   false,
-			IsWritable: false,
-		},
-		{
-			PublicKey:  solana.SysVarRentPubkey,
+			PublicKey:  tokenProgram,
 			IsSigner:   false,
 			IsWritable: false,
 		},
@@ -139,17 +156,22 @@ func (inst CreateIdempotent) ValidateAndBuild() (*Instruction, error) {
 
 func (inst *CreateIdempotent) Validate() error {
 	if inst.Payer.IsZero() {
-		return errors.New("Payer not set")
+		return errors.New("payer not set")
 	}
 	if inst.Wallet.IsZero() {
-		return errors.New("Wallet not set")
+		return errors.New("wallet not set")
 	}
 	if inst.Mint.IsZero() {
-		return errors.New("Mint not set")
+		return errors.New("mint not set")
 	}
-	_, _, err := solana.FindAssociatedTokenAddress(
+	tokenProgram := inst.TokenProgram
+	if tokenProgram.IsZero() {
+		tokenProgram = solana.TokenProgramID
+	}
+	_, _, err := solana.FindAssociatedTokenAddressWithProgram(
 		inst.Wallet,
 		inst.Mint,
+		tokenProgram,
 	)
 	if err != nil {
 		return fmt.Errorf("error while FindAssociatedTokenAddress: %w", err)
@@ -159,44 +181,70 @@ func (inst *CreateIdempotent) Validate() error {
 
 func (inst *CreateIdempotent) EncodeToTree(parent treeout.Branches) {
 	parent.Child(format.Program(ProgramName, ProgramID)).
-		//
 		ParentFunc(func(programBranch treeout.Branches) {
-			programBranch.Child(format.Instruction("Create")).
-				//
+			programBranch.Child(format.Instruction("CreateIdempotent")).
 				ParentFunc(func(instructionBranch treeout.Branches) {
-
-					// Parameters of the instruction:
 					instructionBranch.Child("Params[len=0]").ParentFunc(func(paramsBranch treeout.Branches) {})
 
-					// Accounts of the instruction:
-					instructionBranch.Child("Accounts[len=7").ParentFunc(func(accountsBranch treeout.Branches) {
+					instructionBranch.Child("Accounts[len=6]").ParentFunc(func(accountsBranch treeout.Branches) {
 						accountsBranch.Child(format.Meta("                 payer", inst.AccountMetaSlice.Get(0)))
 						accountsBranch.Child(format.Meta("associatedTokenAddress", inst.AccountMetaSlice.Get(1)))
 						accountsBranch.Child(format.Meta("                wallet", inst.AccountMetaSlice.Get(2)))
 						accountsBranch.Child(format.Meta("             tokenMint", inst.AccountMetaSlice.Get(3)))
 						accountsBranch.Child(format.Meta("         systemProgram", inst.AccountMetaSlice.Get(4)))
 						accountsBranch.Child(format.Meta("          tokenProgram", inst.AccountMetaSlice.Get(5)))
-						accountsBranch.Child(format.Meta("            sysVarRent", inst.AccountMetaSlice.Get(6)))
 					})
 				})
 		})
 }
 
 func (inst CreateIdempotent) MarshalWithEncoder(encoder *bin.Encoder) error {
-	return encoder.WriteBytes([]byte{}, false)
+	return nil
 }
 
 func (inst *CreateIdempotent) UnmarshalWithDecoder(decoder *bin.Decoder) error {
 	return nil
 }
 
+// NewCreateIdempotentInstruction creates a new CreateIdempotent instruction.
 func NewCreateIdempotentInstruction(
 	payer solana.PublicKey,
 	walletAddress solana.PublicKey,
 	splTokenMintAddress solana.PublicKey,
 ) *CreateIdempotent {
+	return NewCreateIdempotentInstructionWithTokenProgram(
+		payer,
+		walletAddress,
+		splTokenMintAddress,
+		solana.TokenProgramID,
+	)
+}
+
+func NewCreateIdempotentInstructionWithTokenProgram(
+	payer solana.PublicKey,
+	walletAddress solana.PublicKey,
+	splTokenMintAddress solana.PublicKey,
+	tokenProgram solana.PublicKey,
+) *CreateIdempotent {
 	return NewCreateIdempotentInstructionBuilder().
 		SetPayer(payer).
 		SetWallet(walletAddress).
-		SetMint(splTokenMintAddress)
+		SetMint(splTokenMintAddress).
+		SetTokenProgram(tokenProgram)
+}
+
+func (inst *CreateIdempotent) GetPayerAccount() *solana.AccountMeta {
+	return inst.AccountMetaSlice.Get(0)
+}
+
+func (inst *CreateIdempotent) GetAssociatedTokenAddressAccount() *solana.AccountMeta {
+	return inst.AccountMetaSlice.Get(1)
+}
+
+func (inst *CreateIdempotent) GetWalletAccount() *solana.AccountMeta {
+	return inst.AccountMetaSlice.Get(2)
+}
+
+func (inst *CreateIdempotent) GetMintAccount() *solana.AccountMeta {
+	return inst.AccountMetaSlice.Get(3)
 }

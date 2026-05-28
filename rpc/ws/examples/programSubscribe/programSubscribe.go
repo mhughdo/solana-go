@@ -34,7 +34,7 @@ func main() {
 
 	sub, err := client.ProgramSubscribeWithOpts(
 		program,
-		rpc.CommitmentRecent,
+		rpc.CommitmentProcessed,
 		solana.EncodingBase64Zstd,
 		nil,
 	)

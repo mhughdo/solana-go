@@ -30,7 +30,7 @@ func (cl *Client) GetParsedTransaction(
 	txSig solana.Signature,
 	opts *GetParsedTransactionOpts,
 ) (out *GetParsedTransactionResult, err error) {
-	params := []interface{}{txSig}
+	params := []any{txSig}
 	obj := M{}
 	if opts != nil {
 		if opts.Commitment != "" {
@@ -83,7 +83,7 @@ func (wrap *InstructionInfoEnvelope) UnmarshalJSON(data []byte) error {
 			return json.Unmarshal(data, &wrap.asInstructionInfo)
 		}
 	default:
-		return fmt.Errorf("Unknown kind: %v", data)
+		return fmt.Errorf("unknown kind: %v", data)
 	}
 
 	return nil

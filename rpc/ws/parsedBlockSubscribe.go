@@ -27,7 +27,7 @@ type ParsedBlockResult struct {
 	} `json:"context"`
 	Value struct {
 		Slot  uint64                    `json:"slot"`
-		Err   interface{}               `json:"err,omitempty"`
+		Err   any                       `json:"err,omitempty"`
 		Block *rpc.GetParsedBlockResult `json:"block,omitempty"`
 	} `json:"value"`
 }
@@ -43,7 +43,7 @@ func (cl *Client) ParsedBlockSubscribe(
 	filter BlockSubscribeFilter,
 	opts *BlockSubscribeOpts,
 ) (*ParsedBlockSubscription, error) {
-	var params []interface{}
+	var params []any
 	if filter != nil {
 		switch v := filter.(type) {
 		case BlockSubscribeFilterAll:
@@ -62,7 +62,7 @@ func (cl *Client) ParsedBlockSubscribe(
 			obj["transactionDetails"] = opts.TransactionDetails
 		}
 		if opts.Rewards != nil {
-			obj["rewards"] = opts.Rewards
+			obj["showRewards"] = opts.Rewards
 		}
 		if opts.MaxSupportedTransactionVersion != nil {
 			obj["maxSupportedTransactionVersion"] = *opts.MaxSupportedTransactionVersion
@@ -76,7 +76,7 @@ func (cl *Client) ParsedBlockSubscribe(
 		nil,
 		"blockSubscribe",
 		"blockUnsubscribe",
-		func(msg []byte) (interface{}, error) {
+		func(msg []byte) (any, error) {
 			var res ParsedBlockResult
 			err := decodeResponseFromMessage(msg, &res)
 			return &res, err
@@ -98,7 +98,10 @@ func (sw *ParsedBlockSubscription) Recv(ctx context.Context) (*ParsedBlockResult
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case d := <-sw.sub.stream:
+	case d, ok := <-sw.sub.stream:
+		if !ok {
+			return nil, ErrSubscriptionClosed
+		}
 		return d.(*ParsedBlockResult), nil
 	case err := <-sw.sub.err:
 		return nil, err
@@ -107,19 +110,6 @@ func (sw *ParsedBlockSubscription) Recv(ctx context.Context) (*ParsedBlockResult
 
 func (sw *ParsedBlockSubscription) Err() <-chan error {
 	return sw.sub.err
-}
-
-func (sw *ParsedBlockSubscription) Response() <-chan *ParsedBlockResult {
-	typedChan := make(chan *ParsedBlockResult, 1)
-	go func(ch chan *ParsedBlockResult) {
-		// TODO: will this subscription yield more than one result?
-		d, ok := <-sw.sub.stream
-		if !ok {
-			return
-		}
-		ch <- d.(*ParsedBlockResult)
-	}(typedChan)
-	return typedChan
 }
 
 func (sw *ParsedBlockSubscription) Unsubscribe() {

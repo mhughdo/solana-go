@@ -4,19 +4,28 @@ package jsonrpc
 import (
 	"bytes"
 	"context"
-	stdjson "encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"reflect"
 	"sync/atomic"
 
 	"github.com/davecgh/go-spew/spew"
+	gojson "github.com/goccy/go-json"
+	stdjson "github.com/goccy/go-json"
 	"github.com/google/uuid"
-	jsoniter "github.com/json-iterator/go"
 )
 
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
+var json = struct {
+	Marshal    func(v any) ([]byte, error)
+	Unmarshal  func(data []byte, v any) error
+	NewDecoder func(r io.Reader) *gojson.Decoder
+}{
+	Marshal:    gojson.Marshal,
+	Unmarshal:  gojson.Unmarshal,
+	NewDecoder: gojson.NewDecoder,
+}
 
 const (
 	jsonrpcVersion = "2.0"
@@ -50,7 +59,7 @@ type RPCClient interface {
 	//   Call("setPersonDetails", "Alex", 35, "Germany") -> {"method": "setPersonDetails", "params": ["Alex", 35, "Germany"}}
 	//
 	// for more information, see the examples or the unit tests
-	Call(ctx context.Context, method string, params ...interface{}) (*RPCResponse, error)
+	Call(ctx context.Context, method string, params ...any) (*RPCResponse, error)
 
 	// CallRaw is like Call() but without magic in the requests.Params field.
 	// The RPCRequest object is sent exactly as you provide it.
@@ -64,7 +73,7 @@ type RPCClient interface {
 	//
 	// out: will store the unmarshaled object, if request was successful.
 	// should always be provided by references. can be nil even on success.
-	// the behaviour is the same as expected from json.Unmarshal()
+	// the behavior is the same as expected from json.Unmarshal()
 	//
 	// method and params: see Call() function
 	//
@@ -72,7 +81,7 @@ type RPCClient interface {
 	// an error is returned. if it was an JSON-RPC error it can be casted
 	// to *RPCError.
 	//
-	CallFor(ctx context.Context, out interface{}, method string, params ...interface{}) error
+	CallFor(ctx context.Context, out any, method string, params ...any) error
 
 	// CallBatch invokes a list of RPCRequests in a single batch request.
 	//
@@ -120,8 +129,8 @@ type RPCClient interface {
 	// - RPCPersponses is enriched with helper functions e.g.: responses.HasError() returns  true if one of the responses holds an RPCError
 	CallBatchRaw(ctx context.Context, requests RPCRequests) (RPCResponses, error)
 
-	CallForInto(ctx context.Context, out interface{}, method string, params []interface{}) error
-	CallWithCallback(ctx context.Context, method string, params []interface{}, callback func(*http.Request, *http.Response) error) error
+	CallForInto(ctx context.Context, out any, method string, params []any) error
+	CallWithCallback(ctx context.Context, method string, params []any, callback func(*http.Request, *http.Response) error) error
 	Close() error
 }
 
@@ -165,16 +174,16 @@ type RPCClient interface {
 //	  Params: []int{2}, <-- invalid since a single primitive value must be wrapped in an array
 //	}
 type RPCRequest struct {
-	Method  string      `json:"method"`
-	Params  interface{} `json:"params,omitempty"`
-	ID      any         `json:"id"`
-	JSONRPC string      `json:"jsonrpc"`
+	Method  string `json:"method"`
+	Params  any    `json:"params,omitempty"`
+	ID      any    `json:"id"`
+	JSONRPC string `json:"jsonrpc"`
 }
 
 // NewRequest returns a new RPCRequest that can be created using the same convenient parameter syntax as Call()
 //
 // e.g. NewRequest("myMethod", "Alex", 35, true)
-func NewRequest(method string, params ...interface{}) *RPCRequest {
+func NewRequest(method string, params ...any) *RPCRequest {
 	request := &RPCRequest{
 		Method:  method,
 		Params:  Params(params...),
@@ -212,9 +221,9 @@ type RPCResponse struct {
 //
 // See: http://www.jsonrpc.org/specification#error_object
 type RPCError struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"`
 }
 
 var spewConf = spew.ConfigState{
@@ -262,15 +271,40 @@ type rpcClient struct {
 	endpoint      string
 	httpClient    HTTPClient
 	customHeaders map[string]string
+	customHeader  http.Header
 }
 
-// RPCClientOpts can be provided to NewClientWithOpts() to change configuration of RPCClient.
+// RPCClientOpts can be provided to NewClientWithOpts() to change configuration
+// of RPCClient.
 //
-// HTTPClient: provide a custom http.Client (e.g. to set a proxy, or tls options)
+// HTTPClient: provide a custom http.Client (e.g. to set a proxy, or tls
+// options).
 //
-// CustomHeaders: provide custom headers, e.g. to set BasicAuth
+// CustomHeader: provide custom request headers as an http.Header. Use this for
+// any new code: it preserves multi-value semantics so headers like Cookie,
+// X-Forwarded-For, or other RFC 7230 list-form headers are sent as separate
+// header lines verbatim instead of being collapsed to a single value.
+//
+// CustomHeaders is the legacy map[string]string equivalent and is kept for
+// backward compatibility. When a name is present in both CustomHeader and
+// CustomHeaders, CustomHeader wins.
 type RPCClientOpts struct {
-	HTTPClient    HTTPClient
+	HTTPClient HTTPClient
+
+	// CustomHeader applies request headers as an http.Header, preserving
+	// multi-value entries (each value becomes its own header line on the
+	// wire). Prefer this over CustomHeaders.
+	CustomHeader http.Header
+
+	// CustomHeaders applies request headers from a name->value map. Each
+	// entry is applied via http.Header.Set, so only a single value per
+	// name survives — multiple inbound values for the same header are
+	// silently dropped and Cookie / X-Forwarded-For style headers cannot
+	// be forwarded faithfully.
+	//
+	// Deprecated: use CustomHeader instead. CustomHeaders is retained for
+	// backward compatibility; new code should use the http.Header field
+	// which supports multi-value headers correctly.
 	CustomHeaders map[string]string
 }
 
@@ -355,10 +389,14 @@ func NewClientWithOpts(endpoint string, opts *RPCClientOpts) RPCClient {
 		}
 	}
 
+	if len(opts.CustomHeader) > 0 {
+		rpcClient.customHeader = opts.CustomHeader.Clone()
+	}
+
 	return rpcClient
 }
 
-func (client *rpcClient) Call(ctx context.Context, method string, params ...interface{}) (*RPCResponse, error) {
+func (client *rpcClient) Call(ctx context.Context, method string, params ...any) (*RPCResponse, error) {
 	request := &RPCRequest{
 		Method:  method,
 		Params:  Params(params...),
@@ -377,9 +415,9 @@ func (client *rpcClient) Close() error {
 
 func (client *rpcClient) CallForInto(
 	ctx context.Context,
-	out interface{},
+	out any,
 	method string,
-	params []interface{},
+	params []any,
 ) error {
 	request := &RPCRequest{
 		Method:  method,
@@ -405,7 +443,7 @@ func (client *rpcClient) CallForInto(
 func (client *rpcClient) CallWithCallback(
 	ctx context.Context,
 	method string,
-	params []interface{},
+	params []any,
 	callback func(*http.Request, *http.Response) error,
 ) error {
 	request := &RPCRequest{
@@ -428,7 +466,7 @@ func (client *rpcClient) CallRaw(ctx context.Context, request *RPCRequest) (*RPC
 	return client.doCall(ctx, request)
 }
 
-func (client *rpcClient) CallFor(ctx context.Context, out interface{}, method string, params ...interface{}) error {
+func (client *rpcClient) CallFor(ctx context.Context, out any, method string, params ...any) error {
 	rpcResponse, err := client.Call(ctx, method, params...)
 	if err != nil {
 		return err
@@ -462,7 +500,7 @@ func (client *rpcClient) CallBatchRaw(ctx context.Context, requests RPCRequests)
 	return client.doBatchCall(ctx, requests)
 }
 
-func (client *rpcClient) newRequest(ctx context.Context, req interface{}) (*http.Request, error) {
+func (client *rpcClient) newRequest(ctx context.Context, req any) (*http.Request, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -476,9 +514,17 @@ func (client *rpcClient) newRequest(ctx context.Context, req interface{}) (*http
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json")
 
-	// set default headers first, so that even content type and accept can be overwritten
+	// CustomHeaders (legacy, single-value) is applied first so that even
+	// Content-Type and Accept can be overwritten by callers that need to.
 	for k, v := range client.customHeaders {
 		request.Header.Set(k, v)
+	}
+
+	// CustomHeader (http.Header) is applied last so it takes precedence
+	// over CustomHeaders for any name present in both, and so multi-value
+	// entries land verbatim as separate header lines on the wire.
+	for k, vs := range client.customHeader {
+		request.Header[http.CanonicalHeaderKey(k)] = append([]string(nil), vs...)
 	}
 
 	return request, nil
@@ -519,6 +565,11 @@ func (client *rpcClient) doCall(
 					}
 				}
 				return fmt.Errorf("rpc call %v() on %v status code: %v. rpc response missing", RPCRequest.Method, httpRequest.URL.String(), httpResponse.StatusCode)
+			}
+			// Normalize a literal JSON "null" Result to a nil RawMessage so callers
+			// can treat an explicit null the same as an absent field.
+			if bytes.Equal(bytes.TrimSpace(rpcResponse.Result), []byte("null")) {
+				rpcResponse.Result = nil
 			}
 			return nil
 		},
@@ -604,7 +655,7 @@ func (client *rpcClient) doBatchCall(ctx context.Context, rpcRequest []*RPCReque
 	}
 
 	// response body empty
-	if rpcResponse == nil || len(rpcResponse) == 0 {
+	if len(rpcResponse) == 0 {
 		// if we have some http error, return it
 		if httpResponse.StatusCode >= 400 {
 			return nil, &HTTPError{
@@ -613,6 +664,13 @@ func (client *rpcClient) doBatchCall(ctx context.Context, rpcRequest []*RPCReque
 			}
 		}
 		return nil, fmt.Errorf("rpc batch call on %v status code: %v. rpc response missing", httpRequest.URL.String(), httpResponse.StatusCode)
+	}
+
+	// Normalize a literal JSON "null" Result to a nil RawMessage per-entry.
+	for _, r := range rpcResponse {
+		if r != nil && bytes.Equal(bytes.TrimSpace(r.Result), []byte("null")) {
+			r.Result = nil
+		}
 	}
 
 	return rpcResponse, nil
@@ -644,8 +702,8 @@ func (client *rpcClient) doBatchCall(ctx context.Context, rpcRequest []*RPCReque
 //	  Method: "myMethod",
 //	  Params: []int{2}, <-- invalid since a single primitive value must be wrapped in an array
 //	}
-func Params(params ...interface{}) interface{} {
-	var finalParams interface{}
+func Params(params ...any) any {
+	var finalParams any
 
 	// if params was nil skip this and p stays nil
 	if params != nil {
@@ -691,7 +749,7 @@ func Params(params ...interface{}) interface{} {
 // GetObject converts the rpc response to an arbitrary type.
 //
 // The function works as you would expect it from json.Unmarshal()
-func (RPCResponse *RPCResponse) GetObject(toType interface{}) error {
+func (RPCResponse *RPCResponse) GetObject(toType any) error {
 	if RPCResponse == nil {
 		return errors.New("rpc response is nil")
 	}

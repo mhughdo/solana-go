@@ -38,7 +38,7 @@ func (cl *Client) GetInflationReward(
 	opts *GetInflationRewardOpts,
 
 ) (out []*GetInflationRewardResult, err error) {
-	params := []interface{}{addresses}
+	params := []any{addresses}
 	if opts != nil {
 		obj := M{}
 		if opts.Commitment != "" {
@@ -57,7 +57,7 @@ func (cl *Client) GetInflationReward(
 }
 
 type GetInflationRewardResult struct {
-	// Epoch for which reward occured.
+	// Epoch for which reward occurred.
 	Epoch uint64 `json:"epoch"`
 
 	// The slot in which the rewards are effective.
@@ -71,4 +71,7 @@ type GetInflationRewardResult struct {
 
 	// Vote account commission when the reward was credited.
 	Commission *uint8 `json:"commission,omitempty"`
+
+	// Vote account commission in basis points when the reward was credited.
+	CommissionBps *uint16 `json:"commissionBps,omitempty"`
 }

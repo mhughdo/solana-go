@@ -29,10 +29,10 @@ import (
 )
 
 func init() {
-	solana.RegisterInstructionDecoder(ProgramID(), registryDecodeInstruction)
+	solana.MustRegisterInstructionDecoder(ProgramID(), registryDecodeInstruction)
 }
 
-func registryDecodeInstruction(accounts []*solana.AccountMeta, data []byte) (interface{}, error) {
+func registryDecodeInstruction(accounts []*solana.AccountMeta, data []byte) (any, error) {
 	inst, err := DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func registryDecodeInstruction(accounts []*solana.AccountMeta, data []byte) (int
 func DecodeInstruction(accounts []*solana.AccountMeta, data []byte) (*Instruction, error) {
 	var inst Instruction
 	if err := bin.NewBinDecoder(data).Decode(&inst); err != nil {
-		return nil, fmt.Errorf("unable to decode instruction for serum program: %w", err)
+		return nil, fmt.Errorf("unable to decode instruction for token registry program: %w", err)
 	}
 
 	if v, ok := inst.Impl.(solana.AccountsSettable); ok {
@@ -66,9 +66,9 @@ func NewRegisterTokenInstruction(logo Logo, name Name, symbol Symbol, website We
 				Website: website,
 				Symbol:  symbol,
 				Accounts: &RegisterTokenAccounts{
-					TokenMeta: &solana.AccountMeta{tokenMetaKey, false, true},
-					Owner:     &solana.AccountMeta{ownerKey, true, false},
-					Token:     &solana.AccountMeta{tokenKey, false, false},
+					TokenMeta: &solana.AccountMeta{PublicKey: tokenMetaKey, IsWritable: false, IsSigner: true},
+					Owner:     &solana.AccountMeta{PublicKey: ownerKey, IsWritable: true, IsSigner: false},
+					Token:     &solana.AccountMeta{PublicKey: tokenKey, IsWritable: false, IsSigner: false},
 				},
 			},
 		},
@@ -103,7 +103,7 @@ func (i *Instruction) Data() ([]byte, error) {
 }
 
 var InstructionDefVariant = bin.NewVariantDefinition(bin.Uint32TypeIDEncoding, []bin.VariantType{
-	{"register_token", (*RegisterToken)(nil)},
+	{Name: "register_token", Type: (*RegisterToken)(nil)},
 })
 
 func (i *Instruction) TextEncode(encoder *text.Encoder, option *text.Option) error {

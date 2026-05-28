@@ -34,22 +34,19 @@ type GetTransactionOpts struct {
 }
 
 // GetTransaction returns transaction details for a confirmed transaction.
-//
-// NEW: This method is only available in solana-core v1.7 or newer.
-// Please use `getConfirmedTransaction` for solana-core v1.6
 func (cl *Client) GetTransaction(
 	ctx context.Context,
 	txSig solana.Signature, // transaction signature
 	opts *GetTransactionOpts,
 ) (out *GetTransactionResult, err error) {
-	params := []interface{}{txSig}
+	params := []any{txSig}
 	if opts != nil {
 		obj := M{}
 		if opts.Encoding != "" {
 			if !solana.IsAnyOfEncodingType(
 				opts.Encoding,
 				// Valid encodings:
-				// solana.EncodingJSON, // TODO
+				solana.EncodingJSON,
 				solana.EncodingJSONParsed, // TODO
 				solana.EncodingBase58,
 				solana.EncodingBase64,
@@ -132,7 +129,7 @@ func (wrap *TransactionResultEnvelope) UnmarshalJSON(data []byte) error {
 			return json.Unmarshal(data, &wrap.asParsedTransaction)
 		}
 	default:
-		return fmt.Errorf("Unknown kind: %v", data)
+		return fmt.Errorf("unknown kind: %v", data)
 	}
 
 	return nil

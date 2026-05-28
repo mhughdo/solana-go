@@ -28,7 +28,7 @@ type BlockResult struct {
 	} `json:"context"`
 	Value struct {
 		Slot  uint64              `json:"slot"`
-		Err   interface{}         `json:"err,omitempty"`
+		Err   any                 `json:"err,omitempty"`
 		Block *rpc.GetBlockResult `json:"block,omitempty"`
 	} `json:"value"`
 }
@@ -41,13 +41,13 @@ var _ BlockSubscribeFilter = BlockSubscribeFilterAll("")
 
 type BlockSubscribeFilterAll string
 
-func (_ BlockSubscribeFilterAll) isBlockSubscribeFilter() {}
+func (BlockSubscribeFilterAll) isBlockSubscribeFilter() {}
 
 type BlockSubscribeFilterMentionsAccountOrProgram struct {
 	Pubkey solana.PublicKey `json:"pubkey"`
 }
 
-func (_ BlockSubscribeFilterMentionsAccountOrProgram) isBlockSubscribeFilter() {}
+func (BlockSubscribeFilterMentionsAccountOrProgram) isBlockSubscribeFilter() {}
 
 func NewBlockSubscribeFilterAll() BlockSubscribeFilter {
 	return BlockSubscribeFilterAll("")
@@ -61,7 +61,13 @@ func NewBlockSubscribeFilterMentionsAccountOrProgram(pubkey solana.PublicKey) *B
 
 type BlockSubscribeOpts struct {
 	Commitment rpc.CommitmentType
-	Encoding   solana.EncodingType `json:"encoding,omitempty"`
+	// Encoding controls how transactions inside each block are returned.
+	//
+	// Supported values: EncodingBase58, EncodingBase64, EncodingBase64Zstd.
+	// EncodingJSONParsed is NOT supported here because BlockResult is shaped
+	// for the non-parsed transaction layout. Use Client.ParsedBlockSubscribe
+	// instead when parsed JSON output is needed.
+	Encoding solana.EncodingType `json:"encoding,omitempty"`
 
 	// Level of transaction detail to return.
 	TransactionDetails rpc.TransactionDetailsType
@@ -85,7 +91,7 @@ func (cl *Client) BlockSubscribe(
 	filter BlockSubscribeFilter,
 	opts *BlockSubscribeOpts,
 ) (*BlockSubscription, error) {
-	var params []interface{}
+	var params []any
 	if filter != nil {
 		switch v := filter.(type) {
 		case BlockSubscribeFilterAll:
@@ -100,11 +106,18 @@ func (cl *Client) BlockSubscribe(
 			obj["commitment"] = opts.Commitment
 		}
 		if opts.Encoding != "" {
+			// EncodingJSONParsed cannot decode through BlockResult: the
+			// response shape uses *rpc.GetBlockResult, which models the
+			// non-parsed transaction layout. Reject it up front with a
+			// pointer to ParsedBlockSubscribe rather than letting the
+			// request go out and fail at decode time.
+			if opts.Encoding == solana.EncodingJSONParsed {
+				return nil, fmt.Errorf("encoding %s is not supported by BlockSubscribe; use ParsedBlockSubscribe instead", opts.Encoding)
+			}
 			if !solana.IsAnyOfEncodingType(
 				opts.Encoding,
 				// Valid encodings:
 				// solana.EncodingJSON, // TODO
-				solana.EncodingJSONParsed, // TODO
 				solana.EncodingBase58,
 				solana.EncodingBase64,
 				solana.EncodingBase64Zstd,
@@ -117,7 +130,7 @@ func (cl *Client) BlockSubscribe(
 			obj["transactionDetails"] = opts.TransactionDetails
 		}
 		if opts.Rewards != nil {
-			obj["rewards"] = opts.Rewards
+			obj["showRewards"] = opts.Rewards
 		}
 		if opts.MaxSupportedTransactionVersion != nil {
 			obj["maxSupportedTransactionVersion"] = *opts.MaxSupportedTransactionVersion
@@ -131,7 +144,7 @@ func (cl *Client) BlockSubscribe(
 		nil,
 		"blockSubscribe",
 		"blockUnsubscribe",
-		func(msg []byte) (interface{}, error) {
+		func(msg []byte) (any, error) {
 			var res BlockResult
 			err := decodeResponseFromMessage(msg, &res)
 			return &res, err
@@ -165,19 +178,6 @@ func (sw *BlockSubscription) Recv(ctx context.Context) (*BlockResult, error) {
 
 func (sw *BlockSubscription) Err() <-chan error {
 	return sw.sub.err
-}
-
-func (sw *BlockSubscription) Response() <-chan *BlockResult {
-	typedChan := make(chan *BlockResult, 1)
-	go func(ch chan *BlockResult) {
-		// TODO: will this subscription yield more than one result?
-		d, ok := <-sw.sub.stream
-		if !ok {
-			return
-		}
-		ch <- d.(*BlockResult)
-	}(typedChan)
-	return typedChan
 }
 
 func (sw *BlockSubscription) Unsubscribe() {

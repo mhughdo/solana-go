@@ -20,7 +20,6 @@ package solana
 import (
 	"bytes"
 	"crypto"
-	"crypto/ed25519"
 	crypto_rand "crypto/rand"
 	"crypto/sha256"
 	"errors"
@@ -29,10 +28,10 @@ import (
 	"os"
 	"sort"
 
-	"filippo.io/edwards25519"
-	"github.com/mr-tron/base58"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/bsontype"
+	"github.com/gagliardetto/solana-go/base58"
+	"github.com/oasisprotocol/curve25519-voi/curve"
+	voied25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 type PrivateKey []byte
@@ -61,7 +60,6 @@ func PrivateKeyFromBase58(privkey string) (PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	// validate
 	if _, err := ValidatePrivateKey(res); err != nil {
 		return nil, err
 	}
@@ -69,13 +67,17 @@ func PrivateKeyFromBase58(privkey string) (PrivateKey, error) {
 }
 
 func ValidatePrivateKey(b []byte) (bool, error) {
-	if len(b) != ed25519.PrivateKeySize {
-		return false, fmt.Errorf("invalid private key size, expected %v, got %d", ed25519.PrivateKeySize, len(b))
+	if len(b) != voied25519.PrivateKeySize {
+		return false, fmt.Errorf("invalid private key size, expected %v, got %d", voied25519.PrivateKeySize, len(b))
 	}
-	// check if the public key is on the ed25519 curve
-	pub := ed25519.PrivateKey(b).Public().(ed25519.PublicKey)
-	if !IsOnCurve(pub) {
-		return false, errors.New("the corresponding public key is NOT on the ed25519 curve")
+
+	// ed25519 private keys are seed(32) + public(32); ensure they match.
+	derived := voied25519.NewKeyFromSeed(b[:voied25519.SeedSize])
+	if !bytes.Equal(derived, b) {
+		if !IsOnCurve(b[voied25519.SeedSize:]) {
+			return false, errors.New("invalid private key: seed/public key mismatch (provided public key is NOT on the ed25519 curve)")
+		}
+		return false, errors.New("invalid private key: seed/public key mismatch")
 	}
 	return true, nil
 }
@@ -110,7 +112,7 @@ func (k PrivateKey) String() string {
 }
 
 func NewRandomPrivateKey() (PrivateKey, error) {
-	pub, priv, err := ed25519.GenerateKey(crypto_rand.Reader)
+	pub, priv, err := voied25519.GenerateKey(crypto_rand.Reader)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +125,7 @@ func (k PrivateKey) Sign(payload []byte) (Signature, error) {
 	if err := k.Validate(); err != nil {
 		return Signature{}, err
 	}
-	p := ed25519.PrivateKey(k)
+	p := voied25519.PrivateKey(k)
 	signData, err := p.Sign(crypto_rand.Reader, payload, crypto.Hash(0))
 	if err != nil {
 		return Signature{}, err
@@ -140,8 +142,8 @@ func (k PrivateKey) PublicKey() PublicKey {
 		panic(err)
 	}
 
-	p := ed25519.PrivateKey(k)
-	pub := p.Public().(ed25519.PublicKey)
+	p := voied25519.PrivateKey(k)
+	pub := p.Public().(voied25519.PublicKey)
 
 	var publicKey PublicKey
 	copy(publicKey[:], pub)
@@ -152,9 +154,13 @@ func (k PrivateKey) PublicKey() PublicKey {
 // PK is a convenience alias for PublicKey
 type PK = PublicKey
 
+// done to keep verify the same as stdlib crypto/ed25519
+var verifyOptsStdLib = &voied25519.Options{
+	Verify: voied25519.VerifyOptionsStdLib,
+}
+
 func (p PublicKey) Verify(message []byte, signature Signature) bool {
-	pub := ed25519.PublicKey(p[:])
-	return ed25519.Verify(pub, message, signature[:])
+	return voied25519.VerifyWithOptions(p[:], message, signature[:], verifyOptsStdLib)
 }
 
 type PublicKey [PublicKeyLength]byte
@@ -188,21 +194,24 @@ func MustPublicKeyFromBase58(in string) PublicKey {
 // PublicKeyFromBase58 creates a PublicKey from a base58 encoded string.
 // NOTE: it will accept on- and off-curve pubkeys.
 func PublicKeyFromBase58(in string) (out PublicKey, err error) {
-	val, err := base58.Decode(in)
-	if err != nil {
+	if err = base58.Decode32(in, (*[32]byte)(&out)); err != nil {
+		// Fall back to the variable-length decoder to produce a more
+		// informative error when the input decodes to a wrong-length value.
+		val, decErr := base58.Decode(in)
+		if decErr != nil {
+			return out, fmt.Errorf("decode: %w", decErr)
+		}
+		if len(val) != PublicKeyLength {
+			return out, fmt.Errorf("invalid length, expected %v, got %d", PublicKeyLength, len(val))
+		}
 		return out, fmt.Errorf("decode: %w", err)
 	}
-
-	if len(val) != PublicKeyLength {
-		return out, fmt.Errorf("invalid length, expected %v, got %d", PublicKeyLength, len(val))
-	}
-
-	copy(out[:], val)
 	return
 }
 
 func (p PublicKey) MarshalText() ([]byte, error) {
-	return []byte(base58.Encode(p[:])), nil
+	buf := make([]byte, 0, base58.EncodedMaxLen32)
+	return base58.AppendEncode32(buf, (*[32]byte)(&p)), nil
 }
 
 func (p *PublicKey) UnmarshalText(data []byte) error {
@@ -210,7 +219,13 @@ func (p *PublicKey) UnmarshalText(data []byte) error {
 }
 
 func (p PublicKey) MarshalJSON() ([]byte, error) {
-	return json.Marshal(base58.Encode(p[:]))
+	// Write directly into a JSON-quoted buffer. Base58 characters are all ASCII
+	// and never contain JSON-escape characters, so we can skip json.Marshal.
+	buf := make([]byte, 0, base58.EncodedMaxLen32+2)
+	buf = append(buf, '"')
+	buf = base58.AppendEncode32(buf, (*[32]byte)(&p))
+	buf = append(buf, '"')
+	return buf, nil
 }
 
 func (p *PublicKey) UnmarshalJSON(data []byte) (err error) {
@@ -246,12 +261,12 @@ func (p *PublicKey) UnmarshalBSON(data []byte) (err error) {
 }
 
 // MarshalBSONValue implements the bson.ValueMarshaler interface.
-func (p PublicKey) MarshalBSONValue() (bsontype.Type, []byte, error) {
+func (p PublicKey) MarshalBSONValue() (bson.Type, []byte, error) {
 	return bson.MarshalValue(p.String())
 }
 
 // UnmarshalBSONValue implements the bson.ValueUnmarshaler interface.
-func (p *PublicKey) UnmarshalBSONValue(t bsontype.Type, data []byte) (err error) {
+func (p *PublicKey) UnmarshalBSONValue(t bson.Type, data []byte) (err error) {
 	var s string
 	if err := bson.UnmarshalValue(t, data, &s); err != nil {
 		return err
@@ -287,7 +302,7 @@ func (p PublicKey) Bytes() []byte {
 	return []byte(p[:])
 }
 
-// Check if a `Pubkey` is on the ed25519 curve.
+// Check if a `Pubkey` is on the voied25519 curve.
 func (p PublicKey) IsOnCurve() bool {
 	return IsOnCurve(p[:])
 }
@@ -704,10 +719,13 @@ var nativeProgramIDs = PublicKeySlice{
 	VoteProgramID,
 	Secp256k1ProgramID,
 	SystemProgramID,
+	SysVarPubkey,
 	SysVarClockPubkey,
+	SysVarEpochRewardsPubkey,
 	SysVarEpochSchedulePubkey,
 	SysVarFeesPubkey,
 	SysVarInstructionsPubkey,
+	SysVarLastRestartSlotPubkey,
 	SysVarRecentBlockHashesPubkey,
 	SysVarRentPubkey,
 	SysVarRewardsPubkey,
@@ -732,7 +750,7 @@ const (
 	SignatureLength = 64
 
 	// Number of bytes in a private key.
-	PrivateKeyLength = ed25519.PrivateKeySize
+	PrivateKeyLength = voied25519.PrivateKeySize
 
 	// // Maximum string length of a base58 encoded pubkey.
 	// MaxBase58Length = 44
@@ -795,12 +813,18 @@ func CreateProgramAddress(seeds [][]byte, programID PublicKey) (PublicKey, error
 
 // Check if the provided `b` is on the ed25519 curve.
 func IsOnCurve(b []byte) bool {
-	if len(b) != ed25519.PublicKeySize {
+	if len(b) != voied25519.PublicKeySize {
 		return false
 	}
-	_, err := new(edwards25519.Point).SetBytes(b)
-	isOnCurve := err == nil
-	return isOnCurve
+	var compressed curve.CompressedEdwardsY
+	if _, err := compressed.SetBytes(b); err != nil {
+		return false
+	}
+	var p curve.EdwardsPoint
+	if _, err := p.SetCompressedY(&compressed); err != nil {
+		return false
+	}
+	return true
 }
 
 // Find a valid program address and its corresponding bump seed.
@@ -822,9 +846,24 @@ func FindAssociatedTokenAddress(
 	wallet PublicKey,
 	mint PublicKey,
 ) (PublicKey, uint8, error) {
+	return FindAssociatedTokenAddressWithProgram(
+		wallet,
+		mint,
+		TokenProgramID,
+	)
+}
+
+// FindAssociatedTokenAddressWithProgram returns the associated token account PDA
+// for the provided wallet, mint, and token program.
+func FindAssociatedTokenAddressWithProgram(
+	wallet PublicKey,
+	mint PublicKey,
+	tokenProgram PublicKey,
+) (PublicKey, uint8, error) {
 	return findAssociatedTokenAddressAndBumpSeed(
 		wallet,
 		mint,
+		tokenProgram,
 		SPLAssociatedTokenAccountProgramID,
 	)
 }
@@ -832,11 +871,12 @@ func FindAssociatedTokenAddress(
 func findAssociatedTokenAddressAndBumpSeed(
 	walletAddress PublicKey,
 	splTokenMintAddress PublicKey,
+	tokenProgram PublicKey,
 	programID PublicKey,
 ) (PublicKey, uint8, error) {
 	return FindProgramAddress([][]byte{
 		walletAddress[:],
-		TokenProgramID[:],
+		tokenProgram[:],
 		splTokenMintAddress[:],
 	},
 		programID,

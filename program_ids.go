@@ -71,12 +71,15 @@ var (
 	// and know they were approved by zero or more addresses
 	// by inspecting the transaction log from a trusted provider.
 	MemoProgramID = MustPublicKeyFromBase58("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
+
+	// MemoProgramIDV1 is the deprecated v1 Memo program.
+	// Some legacy transactions still reference this program ID.
+	MemoProgramIDV1 = MustPublicKeyFromBase58("Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo")
 )
 
 var (
-	// The Mint for native SOL Token accounts
-	SolMint    = MustPublicKeyFromBase58("So11111111111111111111111111111111111111112")
-	WrappedSol = SolMint
+	SolMint    = MustPublicKeyFromBase58("So11111111111111111111111111111111111111111")
+	WrappedSol = MustPublicKeyFromBase58("So11111111111111111111111111111111111111112")
 )
 
 var TokenMetadataProgramID = MustPublicKeyFromBase58("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s")

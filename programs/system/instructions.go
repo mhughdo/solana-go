@@ -31,15 +31,15 @@ import (
 
 var ProgramID ag_solanago.PublicKey = ag_solanago.SystemProgramID
 
-func SetProgramID(pubkey ag_solanago.PublicKey) {
+func SetProgramID(pubkey ag_solanago.PublicKey) error {
 	ProgramID = pubkey
-	ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
+	return ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
 }
 
 const ProgramName = "System"
 
 func init() {
-	ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
+	ag_solanago.MustRegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
 }
 
 const (
@@ -61,7 +61,7 @@ const (
 	// Withdraw funds from a nonce account
 	Instruction_WithdrawNonceAccount
 
-	// Drive state of Uninitalized nonce account to Initialized, setting the nonce value
+	// Drive state of Uninitialized nonce account to Initialized, setting the nonce value
 	Instruction_InitializeNonceAccount
 
 	// Change the entity authorized to execute nonce instructions on the account
@@ -78,6 +78,10 @@ const (
 
 	// Transfer lamports from a derived address
 	Instruction_TransferWithSeed
+
+	// One-time idempotent upgrade of legacy nonce versions in order to bump
+	// them out of chain blockhash domain.
+	Instruction_UpgradeNonceAccount
 )
 
 // InstructionIDToName returns the name of the instruction given its ID.
@@ -107,6 +111,8 @@ func InstructionIDToName(id uint32) string {
 		return "AssignWithSeed"
 	case Instruction_TransferWithSeed:
 		return "TransferWithSeed"
+	case Instruction_UpgradeNonceAccount:
+		return "UpgradeNonceAccount"
 	default:
 		return ""
 	}
@@ -127,42 +133,19 @@ func (inst *Instruction) EncodeToTree(parent ag_treeout.Branches) {
 var InstructionImplDef = ag_binary.NewVariantDefinition(
 	ag_binary.Uint32TypeIDEncoding,
 	[]ag_binary.VariantType{
-		{
-			"CreateAccount", (*CreateAccount)(nil),
-		},
-		{
-			"Assign", (*Assign)(nil),
-		},
-		{
-			"Transfer", (*Transfer)(nil),
-		},
-		{
-			"CreateAccountWithSeed", (*CreateAccountWithSeed)(nil),
-		},
-		{
-			"AdvanceNonceAccount", (*AdvanceNonceAccount)(nil),
-		},
-		{
-			"WithdrawNonceAccount", (*WithdrawNonceAccount)(nil),
-		},
-		{
-			"InitializeNonceAccount", (*InitializeNonceAccount)(nil),
-		},
-		{
-			"AuthorizeNonceAccount", (*AuthorizeNonceAccount)(nil),
-		},
-		{
-			"Allocate", (*Allocate)(nil),
-		},
-		{
-			"AllocateWithSeed", (*AllocateWithSeed)(nil),
-		},
-		{
-			"AssignWithSeed", (*AssignWithSeed)(nil),
-		},
-		{
-			"TransferWithSeed", (*TransferWithSeed)(nil),
-		},
+		{Name: "CreateAccount", Type: (*CreateAccount)(nil)},
+		{Name: "Assign", Type: (*Assign)(nil)},
+		{Name: "Transfer", Type: (*Transfer)(nil)},
+		{Name: "CreateAccountWithSeed", Type: (*CreateAccountWithSeed)(nil)},
+		{Name: "AdvanceNonceAccount", Type: (*AdvanceNonceAccount)(nil)},
+		{Name: "WithdrawNonceAccount", Type: (*WithdrawNonceAccount)(nil)},
+		{Name: "InitializeNonceAccount", Type: (*InitializeNonceAccount)(nil)},
+		{Name: "AuthorizeNonceAccount", Type: (*AuthorizeNonceAccount)(nil)},
+		{Name: "Allocate", Type: (*Allocate)(nil)},
+		{Name: "AllocateWithSeed", Type: (*AllocateWithSeed)(nil)},
+		{Name: "AssignWithSeed", Type: (*AssignWithSeed)(nil)},
+		{Name: "TransferWithSeed", Type: (*TransferWithSeed)(nil)},
+		{Name: "UpgradeNonceAccount", Type: (*UpgradeNonceAccount)(nil)},
 	},
 )
 
@@ -198,7 +181,7 @@ func (inst Instruction) MarshalWithEncoder(encoder *ag_binary.Encoder) error {
 	return encoder.Encode(inst.Impl)
 }
 
-func registryDecodeInstruction(accounts []*ag_solanago.AccountMeta, data []byte) (interface{}, error) {
+func registryDecodeInstruction(accounts []*ag_solanago.AccountMeta, data []byte) (any, error) {
 	inst, err := DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, err

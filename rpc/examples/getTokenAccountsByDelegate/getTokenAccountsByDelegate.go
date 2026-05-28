@@ -31,7 +31,7 @@ func main() {
 		context.TODO(),
 		pubKey,
 		&rpc.GetTokenAccountsConfig{
-			Mint: solana.MustPublicKeyFromBase58("So11111111111111111111111111111111111111112").ToPointer(),
+			Mint: solana.WrappedSol.ToPointer(),
 		},
 		nil,
 	)

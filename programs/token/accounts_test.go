@@ -74,7 +74,7 @@ func TestAccount(t *testing.T) {
 		balance := uint64(2039280)
 		require.Equal(t,
 			&Account{
-				Mint:            solana.MustPublicKeyFromBase58("So11111111111111111111111111111111111111112"),
+				Mint:            solana.WrappedSol,
 				Owner:           solana.MustPublicKeyFromBase58("7HZaCWazgTuuFuajxaaxGYbGnyVKwxvsJKue1W4Nvyro"),
 				Amount:          (uint64)(28320298),
 				Delegate:        (*solana.PublicKey)(nil),

@@ -17,6 +17,7 @@ package memo
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/davecgh/go-spew/spew"
 	ag_binary "github.com/gagliardetto/binary"
 	ag_solanago "github.com/gagliardetto/solana-go"
@@ -26,13 +27,13 @@ import (
 
 var ProgramID = ag_solanago.MemoProgramID
 
-func SetProgramID(pubkey ag_solanago.PublicKey) {
+func SetProgramID(pubkey ag_solanago.PublicKey) error {
 	ProgramID = pubkey
-	ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
+	return ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
 }
 
 func init() {
-	ag_solanago.RegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
+	ag_solanago.MustRegisterInstructionDecoder(ProgramID, registryDecodeInstruction)
 }
 
 type MemoInstruction struct {
@@ -84,7 +85,7 @@ func (inst MemoInstruction) MarshalWithEncoder(encoder *ag_binary.Encoder) error
 	return encoder.Encode(inst.Impl)
 }
 
-func registryDecodeInstruction(accounts []*ag_solanago.AccountMeta, data []byte) (interface{}, error) {
+func registryDecodeInstruction(accounts []*ag_solanago.AccountMeta, data []byte) (any, error) {
 	inst, err := DecodeInstruction(accounts, data)
 	if err != nil {
 		return nil, err

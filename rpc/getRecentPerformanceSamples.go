@@ -25,7 +25,7 @@ func (cl *Client) GetRecentPerformanceSamples(
 	ctx context.Context,
 	limit *uint,
 ) (out []*GetRecentPerformanceSamplesResult, err error) {
-	params := []interface{}{}
+	params := []any{}
 	if limit != nil {
 		params = append(params, limit)
 	}
@@ -39,6 +39,9 @@ type GetRecentPerformanceSamplesResult struct {
 
 	// Number of transactions in sample.
 	NumTransactions uint64 `json:"numTransactions"`
+
+	// Number of non-vote transactions in sample.
+	NumNonVoteTransactions *uint64 `json:"numNonVoteTransactions,omitempty"`
 
 	// Number of slots in sample.
 	NumSlots uint64 `json:"numSlots"`

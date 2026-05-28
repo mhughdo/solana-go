@@ -81,10 +81,7 @@ func (cl *Client) GetBlock(
 	)
 }
 
-// GetBlock returns identity and transaction information about a confirmed block in the ledger.
-//
-// NEW: This method is only available in solana-core v1.7 or newer.
-// Please use `getConfirmedBlock` for solana-core v1.6
+// GetBlockWithOpts returns identity and transaction information about a confirmed block in the ledger.
 func (cl *Client) GetBlockWithOpts(
 	ctx context.Context,
 	slot uint64,
@@ -108,7 +105,7 @@ func (cl *Client) GetBlockWithOpts(
 			if !solana.IsAnyOfEncodingType(
 				opts.Encoding,
 				// Valid encodings:
-				// solana.EncodingJSON, // TODO
+				solana.EncodingJSON,
 				solana.EncodingJSONParsed, // TODO
 				solana.EncodingBase58,
 				solana.EncodingBase64,
@@ -123,7 +120,7 @@ func (cl *Client) GetBlockWithOpts(
 		}
 	}
 
-	params := []interface{}{slot, obj}
+	params := []any{slot, obj}
 
 	err = cl.rpcClient.CallForInto(ctx, &out, "getBlock", params)
 	if err != nil {
@@ -194,7 +191,7 @@ func (cl *Client) GetParsedBlockWithOpts(
 		}
 	}
 
-	params := []interface{}{slot, obj}
+	params := []any{slot, obj}
 
 	err = cl.rpcClient.CallForInto(ctx, &out, "getBlock", params)
 	if err != nil {
