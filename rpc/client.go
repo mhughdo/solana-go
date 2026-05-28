@@ -68,12 +68,6 @@ func NewWithHeaders(rpcEndpoint string, headers map[string]string) *Client {
 	return NewWithCustomRPCClient(rpcClient)
 }
 
-// New creates a new Solana JSON RPC client with the provided custom headers and custom HTTP client.
-// The provided headers will be added to each RPC request sent via the provided HTTP client.
-func NewWithOpts(rpcEndpoint string, opts *jsonrpc.RPCClientOpts) *Client {
-	return NewWithCustomRPCClient(jsonrpc.NewClientWithOpts(rpcEndpoint, opts))
-}
-
 // NewWithCommitment creates a new Solana JSON RPC client and pins a default
 // CommitmentType on the returned Client. Methods that take an explicit
 // CommitmentType still receive whatever the caller passes; the stored

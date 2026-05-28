@@ -286,19 +286,6 @@ func (sw *TransactionSignatureSubscription) Err() <-chan error {
 	return sw.sub.err
 }
 
-func (sw *TransactionSignatureSubscription) Response() <-chan *TransactionSignatureResult {
-	typedChan := make(chan *TransactionSignatureResult, 1)
-	go func(ch chan *TransactionSignatureResult) {
-		// TODO: will this subscription yield more than one result?
-		d, ok := <-sw.sub.stream
-		if !ok {
-			return
-		}
-		ch <- d.(*TransactionSignatureResult)
-	}(typedChan)
-	return typedChan
-}
-
 func (sw *TransactionSignatureSubscription) Unsubscribe() {
 	sw.sub.Unsubscribe()
 }
@@ -324,19 +311,6 @@ func (sw *TransactionSignatureSubscriptionG[S, P]) Recv(ctx context.Context) (*T
 
 func (sw *TransactionSignatureSubscriptionG[S, P]) Err() <-chan error {
 	return sw.sub.err
-}
-
-func (sw *TransactionSignatureSubscriptionG[S, P]) Response() <-chan *TransactionSignatureResultG[S, P] {
-	typedChan := make(chan *TransactionSignatureResultG[S, P], 1)
-	go func(ch chan *TransactionSignatureResultG[S, P]) {
-		// TODO: will this subscription yield more than one result?
-		d, ok := <-sw.sub.stream
-		if !ok {
-			return
-		}
-		ch <- d.(*TransactionSignatureResultG[S, P])
-	}(typedChan)
-	return typedChan
 }
 
 func (sw *TransactionSignatureSubscriptionG[S, P]) Unsubscribe() {
