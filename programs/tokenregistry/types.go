@@ -21,7 +21,7 @@ import (
 
 	bin "github.com/gagliardetto/binary"
 
-	"github.com/gagliardetto/solana-go"
+	"github.com/solana-foundation/solana-go"
 )
 
 const TOKEN_META_SIZE = 229

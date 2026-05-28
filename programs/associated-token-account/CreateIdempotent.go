@@ -19,9 +19,9 @@ import (
 	"fmt"
 
 	bin "github.com/gagliardetto/binary"
-	solana "github.com/gagliardetto/solana-go"
-	format "github.com/gagliardetto/solana-go/text/format"
 	treeout "github.com/gagliardetto/treeout"
+	solana "github.com/solana-foundation/solana-go"
+	format "github.com/solana-foundation/solana-go/text/format"
 )
 
 // CreateIdempotent creates an associated token account for the given wallet

@@ -33,10 +33,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/programs/system"
-	"github.com/gagliardetto/solana-go/programs/token"
-	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/solana-foundation/solana-go"
+	"github.com/solana-foundation/solana-go/programs/system"
+	"github.com/solana-foundation/solana-go/programs/token"
+	"github.com/solana-foundation/solana-go/rpc"
 )
 
 func main() {

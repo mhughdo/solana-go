@@ -21,8 +21,8 @@ import (
 
 	stdjson "github.com/goccy/go-json"
 
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/solana-foundation/solana-go"
+	"github.com/solana-foundation/solana-go/rpc"
 )
 
 // signatureReceivedMarker is the literal value the validator emits

@@ -28,9 +28,9 @@ import (
 	"os"
 	"sort"
 
-	"github.com/gagliardetto/solana-go/base58"
 	"github.com/oasisprotocol/curve25519-voi/curve"
 	voied25519 "github.com/oasisprotocol/curve25519-voi/primitives/ed25519"
+	"github.com/solana-foundation/solana-go/base58"
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
@@ -458,12 +458,12 @@ func (r *RawPublicKey) UnmarshalBSON(data []byte) (err error) {
 }
 
 // MarshalBSONValue implements the bson.ValueMarshaler interface.
-func (r RawPublicKey) MarshalBSONValue() (bsontype.Type, []byte, error) {
+func (r RawPublicKey) MarshalBSONValue() (bson.Type, []byte, error) {
 	return bson.MarshalValue(string(r))
 }
 
 // UnmarshalBSONValue implements the bson.ValueUnmarshaler interface.
-func (r *RawPublicKey) UnmarshalBSONValue(t bsontype.Type, data []byte) (err error) {
+func (r *RawPublicKey) UnmarshalBSONValue(t bson.Type, data []byte) (err error) {
 	var s string
 	if err := bson.UnmarshalValue(t, data, &s); err != nil {
 		return err

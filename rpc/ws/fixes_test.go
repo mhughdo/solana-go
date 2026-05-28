@@ -477,6 +477,6 @@ func TestSubscription_BufferSizes(t *testing.T) {
 		func(msg []byte) (any, error) { return nil, nil },
 	)
 
-	assert.Equal(t, 200, cap(sub.stream), "stream buffer should be 200")
-	assert.Equal(t, 1, cap(sub.err), "err buffer should be 1")
+	assert.Equal(t, 20000, cap(sub.stream), "stream buffer should be 20000")
+	assert.Equal(t, 100, cap(sub.err), "err buffer should be 100")
 }

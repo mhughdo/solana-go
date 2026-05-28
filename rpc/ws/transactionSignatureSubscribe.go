@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/solana-foundation/solana-go"
+	"github.com/solana-foundation/solana-go/rpc"
 )
 
 var ErrInvalidParams = fmt.Errorf("invalid params")

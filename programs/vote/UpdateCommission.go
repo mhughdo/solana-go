@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	bin "github.com/gagliardetto/binary"
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/text/format"
 	"github.com/gagliardetto/treeout"
+	"github.com/solana-foundation/solana-go"
+	"github.com/solana-foundation/solana-go/text/format"
 )
 
 // UpdateCommission updates the commission of a vote account.

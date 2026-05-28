@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	ag_binary "github.com/gagliardetto/binary"
-	ag_solanago "github.com/gagliardetto/solana-go"
-	ag_format "github.com/gagliardetto/solana-go/text/format"
 	ag_treeout "github.com/gagliardetto/treeout"
+	ag_solanago "github.com/solana-foundation/solana-go"
+	ag_format "github.com/solana-foundation/solana-go/text/format"
 )
 
 // Gets the required size of an account for the given mint as a little-endian

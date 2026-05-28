@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
-	"github.com/gagliardetto/solana-go/rpc/ws"
+	"github.com/solana-foundation/solana-go"
+	"github.com/solana-foundation/solana-go/rpc"
+	"github.com/solana-foundation/solana-go/rpc/ws"
 )
 
 // Send and wait for confirmation of a transaction.
