@@ -28,8 +28,8 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/programs/token-2022/zkencryption"
+	"github.com/solana-foundation/solana-go"
+	"github.com/solana-foundation/solana-go/programs/token-2022/zkencryption"
 )
 
 func main() {

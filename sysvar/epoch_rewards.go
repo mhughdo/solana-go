@@ -19,7 +19,7 @@ import (
 	"fmt"
 
 	bin "github.com/gagliardetto/binary"
-	solana "github.com/gagliardetto/solana-go"
+	solana "github.com/solana-foundation/solana-go"
 )
 
 // EpochRewardsSize is the serialized size, in bytes, of the EpochRewards sysvar.

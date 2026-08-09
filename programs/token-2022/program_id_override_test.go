@@ -18,7 +18,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gagliardetto/solana-go"
+	"github.com/solana-foundation/solana-go"
 	"github.com/stretchr/testify/require"
 )
 

@@ -29,8 +29,8 @@ import (
 	bin "github.com/gagliardetto/binary"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gagliardetto/solana-go"
-	"github.com/gagliardetto/solana-go/rpc"
+	"github.com/solana-foundation/solana-go"
+	"github.com/solana-foundation/solana-go/rpc"
 )
 
 // rpcResponseFunc is invoked per request with the parsed JSON-RPC body and
