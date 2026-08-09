@@ -480,3 +480,37 @@ func TestSubscription_BufferSizes(t *testing.T) {
 	assert.Equal(t, 20000, cap(sub.stream), "stream buffer should be 20000")
 	assert.Equal(t, 100, cap(sub.err), "err buffer should be 100")
 }
+
+// TestHandleMessage_SubscribeErrorSurfacesToSubscription pins that a JSON-RPC
+// error reply to a subscribe request (an id but no result, e.g.
+// "Method not found") is delivered to the subscription instead of being
+// silently dropped, which would otherwise leave Recv blocked forever. It also
+// exercises the subID-0 guard in closeSubscription: the client has no live
+// connection here, so a stray unsubscribe write would panic.
+func TestHandleMessage_SubscribeErrorSurfacesToSubscription(t *testing.T) {
+	c := &Client{
+		subscriptionByRequestID: map[uint64]*Subscription{},
+		subscriptionByWSSubID:   map[uint64]*Subscription{},
+	}
+
+	req := &request{ID: 42}
+	sub := newSubscription(
+		req,
+		func(err error) { c.closeSubscription(req.ID, err) },
+		"testUnsubscribe",
+		func([]byte) (any, error) { return nil, nil },
+	)
+	c.subscriptionByRequestID[req.ID] = sub
+
+	c.handleMessage([]byte(
+		`{"jsonrpc":"2.0","error":{"code":-32601,"message":"Method not found"},"id":42}`,
+	))
+
+	select {
+	case err := <-sub.err:
+		require.Error(t, err, "error reply must be surfaced, not swallowed")
+		assert.Contains(t, err.Error(), "Method not found")
+	default:
+		t.Fatal("error reply was not delivered to the subscription")
+	}
+}
