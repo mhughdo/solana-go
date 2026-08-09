@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.22.0](https://github.com/solana-foundation/solana-go/compare/v1.21.0...v1.22.0) (2026-06-30)
+
+
+### Features
+
+* add nonce account support ([#456](https://github.com/solana-foundation/solana-go/issues/456)) ([336881c](https://github.com/solana-foundation/solana-go/commit/336881cfbe66902ee0ec07b25dc1912186508a72))
+* add sysvars ([#457](https://github.com/solana-foundation/solana-go/issues/457)) ([f777896](https://github.com/solana-foundation/solana-go/commit/f7778964b61f6ac2622a194fb034dd92da59c67f))
+* **address-lookup-table:** one-call resolve for message lookups (closes [#262](https://github.com/solana-foundation/solana-go/issues/262)) ([#445](https://github.com/solana-foundation/solana-go/issues/445)) ([34beab1](https://github.com/solana-foundation/solana-go/commit/34beab1e231b6e85b7232361997d70bdd79825ef))
+* **rpc:** add getTransactionsForAddress client method (closes [#343](https://github.com/solana-foundation/solana-go/issues/343)) ([#450](https://github.com/solana-foundation/solana-go/issues/450)) ([9e538c8](https://github.com/solana-foundation/solana-go/commit/9e538c84246ef1a3abfbcc96cac7a3196889b479))
+* **rpc:** forward minContextSlot in 4 remaining JSON-RPC endpoints ([#448](https://github.com/solana-foundation/solana-go/issues/448)) ([c176402](https://github.com/solana-foundation/solana-go/commit/c176402c339e25c704f4eba9be540d56f770feb0))
+* **rpc:** forward MinContextSlot in getBalance/getLatestBlockhash/getSlot/getTokenAccountBalance ([#442](https://github.com/solana-foundation/solana-go/issues/442)) ([b8e70e8](https://github.com/solana-foundation/solana-go/commit/b8e70e8c5cdd1229c6126f00090527664aa8496c))
+* **zk:** add ElGamal & AES key derivation ([#413](https://github.com/solana-foundation/solana-go/issues/413)) ([9fcbf0c](https://github.com/solana-foundation/solana-go/commit/9fcbf0ced8af5b5ad975e45999478b5c36c3e65a))
+
+
+### Bug Fixes
+
+* **message:** surface typed `ErrAddressTablesNotSet` from AccountMetaList (closes [#280](https://github.com/solana-foundation/solana-go/issues/280)) ([#441](https://github.com/solana-foundation/solana-go/issues/441)) ([a87922d](https://github.com/solana-foundation/solana-go/commit/a87922db64914ec510f0bd3994fa97f9e8cb41cc))
+* **rpc:** default simulateTransaction Accounts.Encoding to base64 (closes [#446](https://github.com/solana-foundation/solana-go/issues/446)) ([#447](https://github.com/solana-foundation/solana-go/issues/447)) ([2697614](https://github.com/solana-foundation/solana-go/commit/26976146120a5030f35cd108d6a1257554c51cfa))
+* **token,token-2022:** Build() sets Impl to *T, matching DecodeInstruction (closes [#222](https://github.com/solana-foundation/solana-go/issues/222)) ([#440](https://github.com/solana-foundation/solana-go/issues/440)) ([38c57db](https://github.com/solana-foundation/solana-go/commit/38c57dbfbc5f1b18fffa9bbc029f867f8a9116c5))
+* **token,token-2022:** per-instruction ProgramID override (closes [#254](https://github.com/solana-foundation/solana-go/issues/254)) ([#439](https://github.com/solana-foundation/solana-go/issues/439)) ([f489aac](https://github.com/solana-foundation/solana-go/commit/f489aaced7390fc7bd0fb2ceed2773f2414992d7))
+* **ws:** surface subscription request errors to Recv (closes [#175](https://github.com/solana-foundation/solana-go/issues/175)) ([#449](https://github.com/solana-foundation/solana-go/issues/449)) ([725147a](https://github.com/solana-foundation/solana-go/commit/725147a6691fa580d392ec7ccf844da41d4ddafe))
+
+## [1.21.0](https://github.com/solana-foundation/solana-go/compare/v1.20.0...v1.21.0) (2026-05-25)
+
+
+### Features
+
+* **rpc:** add NewWithCommitment / NewWithTimeout / NewWithTimeoutAndCommitment ([#436](https://github.com/solana-foundation/solana-go/issues/436)) ([e93ff5e](https://github.com/solana-foundation/solana-go/commit/e93ff5e937733daca5fed01c362961c4c8aead25)), closes [#414](https://github.com/solana-foundation/solana-go/issues/414)
+* **rpc:** forward MinContextSlot in getProgramAccounts and getTokenAccounts ([#431](https://github.com/solana-foundation/solana-go/issues/431)) ([17984a5](https://github.com/solana-foundation/solana-go/commit/17984a55c17ab0fc9f308872a43b737601d6a8da))
+* **rpc:** support EncodingJSON in GetTransaction ([#420](https://github.com/solana-foundation/solana-go/issues/420)) ([b906b70](https://github.com/solana-foundation/solana-go/commit/b906b70527a5dfed358090e27dd7f4a7f12749c3))
+* **wallet:** derive PrivateKey/Wallet from BIP-39 mnemonic ([#429](https://github.com/solana-foundation/solana-go/issues/429)) ([89ef706](https://github.com/solana-foundation/solana-go/commit/89ef706472ad49a9622a058497852711f7bd3771))
+* **ws:** support dataSlice in AccountSubscribe ([#433](https://github.com/solana-foundation/solana-go/issues/433)) ([fb31fb1](https://github.com/solana-foundation/solana-go/commit/fb31fb13b42141bb6067c7447b8618e7e848b97b))
+* **ws:** support dataSlice in ProgramSubscribe ([#434](https://github.com/solana-foundation/solana-go/issues/434)) ([950b110](https://github.com/solana-foundation/solana-go/commit/950b110b8f369de33143705cfba0b8da7d240d6f))
+* **ws:** support enableReceivedNotification in SignatureSubscribe ([#432](https://github.com/solana-foundation/solana-go/issues/432)) ([810f171](https://github.com/solana-foundation/solana-go/commit/810f171ff933c1508e9526a2a536a287cac7c386))
+
+
+### Bug Fixes
+
+* **rpc:** support EncodingJSON in GetBlockWithOpts ([#419](https://github.com/solana-foundation/solana-go/issues/419)) ([eee363a](https://github.com/solana-foundation/solana-go/commit/eee363a738642efc6006cdce863689d49afc712c))
+* **ws:** reject EncodingJSONParsed in BlockSubscribe ([#426](https://github.com/solana-foundation/solana-go/issues/426)) ([bf130a2](https://github.com/solana-foundation/solana-go/commit/bf130a2a69b0a3f0462f8119c6b03dd1e9282cf8))
+* **ws:** use spec "showRewards" key in blockSubscribe params ([#430](https://github.com/solana-foundation/solana-go/issues/430)) ([6969f12](https://github.com/solana-foundation/solana-go/commit/6969f121e5700803befeb089e9dc4bbecfdb5f89))
+* **ws:** use uint64 for params.Subscription in incoming notifications ([#427](https://github.com/solana-foundation/solana-go/issues/427)) ([427de1a](https://github.com/solana-foundation/solana-go/commit/427de1a9f438b658dd649ba6f13ba81558192ee1))
+
 ## [1.20.0](https://github.com/solana-foundation/solana-go/compare/v1.19.0...v1.20.0) (2026-05-08)
 
 
