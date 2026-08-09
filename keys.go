@@ -780,35 +780,53 @@ func CreateWithSeed(base PublicKey, seed string, owner PublicKey) (PublicKey, er
 
 const PDA_MARKER = "ProgramDerivedAddress"
 
-var ErrMaxSeedLengthExceeded = errors.New("max seed length exceeded")
+var (
+	ErrMaxSeedLengthExceeded = errors.New("max seed length exceeded")
+	errInvalidSeeds          = errors.New("invalid seeds; address must fall off the curve")
+	errUnableToFindAddress   = errors.New("unable to find a valid program address")
+)
+
+const maxProgramAddressBufferLength = MaxSeeds*MaxSeedLength + PublicKeyLength + len(PDA_MARKER)
 
 // Create a program address.
 // Ported from https://github.com/solana-labs/solana/blob/216983c50e0a618facc39aa07472ba6d23f1b33a/sdk/program/src/pubkey.rs#L204
 func CreateProgramAddress(seeds [][]byte, programID PublicKey) (PublicKey, error) {
-	if len(seeds) > MaxSeeds {
+	return createProgramAddress(seeds, nil, programID)
+}
+
+// createProgramAddress optionally appends a one-byte bump seed without
+// allocating another seed slice. The fixed stack buffer is bounded by the
+// public seed limits and removes the grow-and-copy chain from the hot PDA path.
+func createProgramAddress(seeds [][]byte, bump *byte, programID PublicKey) (PublicKey, error) {
+	seedCount := len(seeds)
+	if bump != nil {
+		seedCount++
+	}
+	if seedCount > MaxSeeds {
 		return PublicKey{}, ErrMaxSeedLengthExceeded
 	}
 
+	var buffer [maxProgramAddressBufferLength]byte
+	offset := 0
 	for _, seed := range seeds {
 		if len(seed) > MaxSeedLength {
 			return PublicKey{}, ErrMaxSeedLengthExceeded
 		}
+		offset += copy(buffer[offset:], seed)
 	}
-
-	buf := []byte{}
-	for _, seed := range seeds {
-		buf = append(buf, seed...)
+	if bump != nil {
+		buffer[offset] = *bump
+		offset++
 	}
-
-	buf = append(buf, programID[:]...)
-	buf = append(buf, []byte(PDA_MARKER)...)
-	hash := sha256.Sum256(buf)
+	offset += copy(buffer[offset:], programID[:])
+	offset += copy(buffer[offset:], PDA_MARKER)
+	hash := sha256.Sum256(buffer[:offset])
 
 	if IsOnCurve(hash[:]) {
-		return PublicKey{}, errors.New("invalid seeds; address must fall off the curve")
+		return PublicKey{}, errInvalidSeeds
 	}
 
-	return PublicKeyFromBytes(hash[:]), nil
+	return PublicKey(hash), nil
 }
 
 // Check if the provided `b` is on the ed25519 curve.
@@ -833,13 +851,13 @@ func FindProgramAddress(seed [][]byte, programID PublicKey) (PublicKey, uint8, e
 	var err error
 	bumpSeed := uint8(math.MaxUint8)
 	for bumpSeed != 0 {
-		address, err = CreateProgramAddress(append(seed, []byte{byte(bumpSeed)}), programID)
+		address, err = createProgramAddress(seed, &bumpSeed, programID)
 		if err == nil {
 			return address, bumpSeed, nil
 		}
 		bumpSeed--
 	}
-	return PublicKey{}, bumpSeed, errors.New("unable to find a valid program address")
+	return PublicKey{}, bumpSeed, errUnableToFindAddress
 }
 
 func FindAssociatedTokenAddress(
