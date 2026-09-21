@@ -60,21 +60,26 @@ type BlockReward struct {
 	// Account balance in lamports after the reward was applied.
 	PostBalance uint64 `json:"postBalance"`
 
-	// Type of reward: "Fee", "Rent", "Voting", "Staking".
+	// Type of reward: "Fee", "Rent", "Voting", "Staking", "DeactivatedStake".
 	RewardType RewardType `json:"rewardType"`
 
 	// Vote account commission when the reward was credited,
-	// only present for voting and staking rewards.
+	// only present for voting, staking, and deactivated-stake rewards.
 	Commission *uint8 `json:"commission,omitempty"`
+
+	// Vote account commission in basis points when the reward was credited,
+	// only present for voting, staking, and deactivated-stake rewards.
+	CommissionBps *uint16 `json:"commissionBps,omitempty"`
 }
 
 type RewardType string
 
 const (
-	RewardTypeFee     RewardType = "Fee"
-	RewardTypeRent    RewardType = "Rent"
-	RewardTypeVoting  RewardType = "Voting"
-	RewardTypeStaking RewardType = "Staking"
+	RewardTypeFee              RewardType = "Fee"
+	RewardTypeRent             RewardType = "Rent"
+	RewardTypeVoting           RewardType = "Voting"
+	RewardTypeStaking          RewardType = "Staking"
+	RewardTypeDeactivatedStake RewardType = "DeactivatedStake"
 )
 
 type TransactionWithMeta struct {
@@ -352,6 +357,10 @@ type TransactionMeta struct {
 	ReturnData ReturnData `json:"returnData"`
 
 	ComputeUnitsConsumed *uint64 `json:"computeUnitsConsumed"`
+
+	// The cost the block cost model charged this transaction against the block
+	// limits. Nil when the RPC node does not report it.
+	CostUnits *uint64 `json:"costUnits"`
 }
 
 type ReturnData struct {
@@ -654,6 +663,10 @@ type ParsedTransactionMeta struct {
 	ReturnData ReturnData `json:"returnData"`
 
 	ComputeUnitsConsumed *uint64 `json:"computeUnitsConsumed"`
+
+	// The cost the block cost model charged this transaction against the block
+	// limits. Nil when the RPC node does not report it.
+	CostUnits *uint64 `json:"costUnits"`
 }
 
 type ParsedInnerInstruction struct {
@@ -671,6 +684,10 @@ type ParsedMessage struct {
 	AccountKeys     []ParsedMessageAccount `json:"accountKeys"`
 	Instructions    []*ParsedInstruction   `json:"instructions"`
 	RecentBlockHash string                 `json:"recentBlockhash"`
+
+	// Inline compute budget configuration; only present for v1 (SIMD-0385)
+	// transactions.
+	TransactionConfig *solana.TransactionConfig `json:"transactionConfig,omitempty"`
 }
 
 type ParsedInstruction struct {

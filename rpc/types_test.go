@@ -22,6 +22,26 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestBlockRewardDeactivatedStake(t *testing.T) {
+	// Response from getBlock for mainnet-beta slot 443232001.
+	in := `{
+		"pubkey":"4dt8gCFuP2CQ8ZC49h3kQ7Cj4eEUWg2sVqBszFjyEevu",
+		"lamports":296220,
+		"postBalance":1359503519,
+		"rewardType":"DeactivatedStake",
+		"commission":null,
+		"commissionBps":0
+	}`
+
+	var reward BlockReward
+	err := stdjson.Unmarshal([]byte(in), &reward)
+	assert.NoError(t, err)
+	assert.Equal(t, RewardTypeDeactivatedStake, reward.RewardType)
+	if assert.NotNil(t, reward.CommissionBps) {
+		assert.Equal(t, uint16(0), *reward.CommissionBps)
+	}
+}
+
 func TestData_base64_zstd(t *testing.T) {
 	val := "KLUv/QQAWQAAaGVsbG8td29ybGTcLcaB"
 	in := `["` + val + `", "base64+zstd"]`

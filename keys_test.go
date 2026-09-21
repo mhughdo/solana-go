@@ -23,6 +23,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"flag"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -491,6 +493,22 @@ func TestCreateWithSeed(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, got.Equals(MustPublicKeyFromBase58("9h1HyLCW5dZnBVap8C5egQ9Z6pHyjsh5MNy83iPqqRuq")))
 	}
+	{
+		// An owner ending with the PDA marker must be rejected, matching
+		// solana-labs Pubkey::create_with_seed, so the derived address can
+		// never collide with a program-derived address.
+		var owner PublicKey
+		marker := []byte(PDA_MARKER)
+		copy(owner[PublicKeyLength-len(marker):], marker)
+
+		_, err := CreateWithSeed(PublicKey{}, "seed", owner)
+		require.ErrorIs(t, err, ErrIllegalOwner)
+	}
+	{
+		// A seed longer than MaxSeedLength is rejected.
+		_, err := CreateWithSeed(PublicKey{}, strings.Repeat("a", MaxSeedLength+1), PublicKey{})
+		require.ErrorIs(t, err, ErrMaxSeedLengthExceeded)
+	}
 }
 
 func TestCreateProgramAddressFromRust(t *testing.T) {
@@ -702,4 +720,45 @@ func TestFindTokenMetadataAddress(t *testing.T) {
 	// https://solscan.io/account/GfihrEYCPrvUyrMyMQPdhGEStxa9nKEK2Wfn9iK4AZq2
 	assert.Equal(t, metadataPDA, MustPublicKeyFromBase58("GfihrEYCPrvUyrMyMQPdhGEStxa9nKEK2Wfn9iK4AZq2"))
 	assert.Equal(t, bumpSeed, uint8(0xfd))
+}
+
+func TestFindProgramAddress_DoesNotMutateCallerSeeds(t *testing.T) {
+	// FindProgramAddress must not write into the caller's seed slice backing
+	// array. Give the slice spare capacity so a naive append(seed, bump) would
+	// reuse (and corrupt) the caller's backing array.
+	seeds := make([][]byte, 2, 4)
+	seeds[0] = []byte("Lil'")
+	seeds[1] = []byte("Bits")
+	programID := NewWallet().PrivateKey.PublicKey()
+
+	_, _, err := FindProgramAddress(seeds, programID)
+	require.NoError(t, err)
+
+	// Length unchanged, contents intact.
+	require.Equal(t, 2, len(seeds))
+	require.Equal(t, []byte("Lil'"), seeds[0])
+	require.Equal(t, []byte("Bits"), seeds[1])
+
+	// The caller can safely append their own next seed without reading a value
+	// smuggled in by FindProgramAddress.
+	mine := append(seeds, []byte("mine"))
+	require.Equal(t, []byte("mine"), mine[2])
+}
+
+func TestFindProgramAddress_ConcurrentSharedSeedsNoRace(t *testing.T) {
+	// Run with -race: concurrent derivation from a shared seed set must not
+	// race on the caller's backing array.
+	seeds := make([][]byte, 1, 2)
+	seeds[0] = []byte("authority")
+	programID := NewWallet().PrivateKey.PublicKey()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, _ = FindProgramAddress(seeds, programID)
+		}()
+	}
+	wg.Wait()
 }

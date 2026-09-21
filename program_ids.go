@@ -42,6 +42,9 @@ var (
 
 	// Create and manage address lookup tables.
 	AddressLookupTableProgramID = MustPublicKeyFromBase58("AddressLookupTab1e1111111111111111111111111")
+
+	// Verify zero-knowledge proofs
+	ZKElGamalProofProgramID = MustPublicKeyFromBase58("ZkE1Gama1Proof11111111111111111111111111111")
 )
 
 // SPL:

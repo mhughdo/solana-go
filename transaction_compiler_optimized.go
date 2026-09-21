@@ -63,6 +63,24 @@ func newTransactionOptimized(instructions []Instruction, recentBlockHash Hash, o
 		opt.apply(&options)
 	}
 
+	switch options.version {
+	case MessageVersionLegacy, MessageVersionV0:
+		if !options.config.IsEmpty() {
+			return nil, fmt.Errorf("TransactionV1Config requires MessageVersionV1 (got version %d)", options.version)
+		}
+	case MessageVersionV1:
+		if len(options.addressTables) > 0 {
+			return nil, fmt.Errorf("v1 transactions do not support address lookup tables; drop TransactionAddressTables or use v0")
+		}
+		for i, ix := range instructions {
+			if ix.ProgramID().Equals(ComputeBudget) {
+				return nil, fmt.Errorf("instruction %d: ComputeBudget instructions are no-ops in v1 transactions; use TransactionV1Config", i)
+			}
+		}
+	default:
+		return nil, fmt.Errorf("invalid message version: %d", options.version)
+	}
+
 	// Accounts() is allowed to materialize a slice. Cache it so generated
 	// instructions do that work once rather than once per compiler pass.
 	instructionAccounts := make([][]*AccountMeta, len(instructions))
@@ -315,6 +333,18 @@ func newTransactionOptimized(instructions []Instruction, recentBlockHash Hash, o
 			ProgramIDIndex: accountInfo[instruction.ProgramID()].index,
 			Accounts:       accountIndexes,
 			Data:           data,
+		}
+	}
+
+	switch options.version {
+	case MessageVersionV0:
+		message.version = MessageVersionV0
+	case MessageVersionV1:
+		message.version = MessageVersionV1
+		message.TransactionConfig = options.config
+		// Fail early on the SIMD-0385 structural limits.
+		if err := message.sanitizeV1(); err != nil {
+			return nil, fmt.Errorf("v1 transaction: %w", err)
 		}
 	}
 
