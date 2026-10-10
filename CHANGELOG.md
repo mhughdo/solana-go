@@ -1,5 +1,30 @@
 # Changelog
 
+## Fork 1.25.1 (2026-10-10)
+
+* Merge upstream v1.25.0, including malformed-instruction error handling and corrected Token-2022 optional-address encodings.
+* Preserve the optimized transaction compiler, PDA implementation, custom WebSocket APIs and foundation module path.
+
+## [1.25.0](https://github.com/solana-foundation/solana-go/compare/v1.24.1...v1.25.0) (2026-10-06)
+
+
+### Features
+
+* **confidential extensions:** add instruction builders for ConfidentialTransferFeeExtension and ConfidentialMintBurnExtension ([#504](https://github.com/solana-foundation/solana-go/issues/504)) ([d2b813e](https://github.com/solana-foundation/solana-go/commit/d2b813e5f52a141a6c5a32dd6933821c74d883de))
+
+
+### Bug Fixes
+
+* **token-2022:** encode optional extension addresses as the program does ([#507](https://github.com/solana-foundation/solana-go/issues/507)) ([5c06b5d](https://github.com/solana-foundation/solana-go/commit/5c06b5df671722ea1bc9275aa2fc0dd1c3326399))
+
+## [1.24.1](https://github.com/solana-foundation/solana-go/compare/v1.24.0...v1.24.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* remove duplicate confidential AccountInfo helpers to break import cycle ([#500](https://github.com/solana-foundation/solana-go/issues/500)) ([7c26c06](https://github.com/solana-foundation/solana-go/commit/7c26c0682eaed0cdce1137a2f63013ef39213bd0))
+* return errors instead of panicking on malformed instruction data ([#501](https://github.com/solana-foundation/solana-go/issues/501)) ([5cf5b46](https://github.com/solana-foundation/solana-go/commit/5cf5b4610ab89443c9e6c4fc013da80d410822a1))
+
 ## [1.24.1](https://github.com/mhughdo/solana-go/compare/v1.22.1...v1.24.1) (2026-09-21)
 
 * Merge upstream `main` through `7c26c06`, including the v1.23/v1.24 additions and the confidential-transfer import-cycle fix.
